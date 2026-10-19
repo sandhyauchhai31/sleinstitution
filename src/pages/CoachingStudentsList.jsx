@@ -197,6 +197,9 @@ export default function CoachingStudentsList() {
       
       const mergedMap = new Map();
       [...cacheStudents, ...coachingCache, ...appsCache].forEach(item => {
+        if (item.id && String(item.id).startsWith('test_coach_')) return;
+        const itemName = String(item.fullName || item.name || '');
+        if (/^Student\s+\d+$/i.test(itemName) && !item.course && !item.contactNo && !item.registrationNo) return;
         const key = getCanonicalKey(item);
         if (key) {
           const existing = mergedMap.get(key) || {};
@@ -236,7 +239,10 @@ export default function CoachingStudentsList() {
 
         const coachSnap = await getDocs(collection(db, 'coaching_students'));
         coachSnap.forEach(d => {
+          if (d.id && d.id.startsWith('test_coach_')) return;
           const data = d.data();
+          const docName = String(data.fullName || data.name || '');
+          if (/^Student\s+\d+$/i.test(docName) && !data.course && !data.contactNo && !data.registrationNo) return;
           const key = getCanonicalKey({ id: d.id, ...data });
           if (key) {
             const existing = firestoreMap.get(key) || {};

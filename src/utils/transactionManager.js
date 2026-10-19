@@ -1,6 +1,7 @@
 import { db, collection, getDocs, doc, setDoc, deleteDoc } from '../firebase';
 
 const CACHE_KEY = 'sle_transactions_cache';
+const DEFAULT_GATEWAY = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_RAZORPAY_MODE === 'live') ? 'Razorpay Live' : 'Razorpay Test';
 
 /**
  * Helper to safely parse any date/time format (ISO, DD/MM/YYYY, MM/DD/YYYY, timestamp, etc.) into numeric milliseconds
@@ -98,7 +99,7 @@ export function normalizeStudentTransaction(s) {
     amount: amount,
     currency: 'INR',
     paymentMethod: s.paymentMethod || 'Razorpay',
-    gateway: 'Razorpay Live',
+    gateway: s.gateway || DEFAULT_GATEWAY,
     status: s.paymentStatus === 'Paid' || paymentId ? 'Paid' : (s.paymentStatus || 'Pending'),
     date: date,
     dateTime: dateTime,
@@ -181,7 +182,7 @@ export function normalizeFranchiseeTransaction(f) {
     amount: amount,
     currency: 'INR',
     paymentMethod: f.paymentMethod || 'Razorpay',
-    gateway: 'Razorpay Live',
+    gateway: f.gateway || DEFAULT_GATEWAY,
     status: f.paymentStatus === 'Paid' || paymentId ? 'Paid' : (f.status === 'Active' ? 'Paid' : (f.paymentStatus || 'Pending')),
     date: date,
     dateTime: dateTime,
@@ -268,7 +269,7 @@ export async function fetchTransactions({ isManual = false } = {}) {
             amount: Number(f.feeAmount || 1000),
             currency: 'INR',
             paymentMethod: 'Razorpay',
-            gateway: 'Razorpay Live',
+            gateway: DEFAULT_GATEWAY,
             status: 'Paid',
             date: rDate,
             dateTime: `${rDate} 10:00:00 AM`,
@@ -395,7 +396,7 @@ export async function recordTransaction(txnData) {
     transactionId: id,
     status: txnData.status || 'Paid',
     paymentMethod: txnData.paymentMethod || 'Razorpay',
-    gateway: txnData.gateway || 'Razorpay Live',
+    gateway: txnData.gateway || DEFAULT_GATEWAY,
     currency: txnData.currency || 'INR',
     date: txnData.date || localToday,
     dateTime: txnData.dateTime || now.toLocaleString(),
@@ -462,7 +463,7 @@ export function exportTransactionsToCSV(transactions, filename = 'sle_payment_tr
     `"${(t.course || t.planName || '').replace(/"/g, '""')}"`,
     `"${(t.branch || t.franchiseName || '').replace(/"/g, '""')}"`,
     t.amount || 0,
-    `"${t.gateway || t.paymentMethod || 'Razorpay Live'}"`,
+    `"${t.gateway || t.paymentMethod || DEFAULT_GATEWAY}"`,
     `"${t.status || 'Paid'}"`
   ]);
 

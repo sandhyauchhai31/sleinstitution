@@ -529,7 +529,15 @@ export default function BranchwiseStudents({ isDarkMode = false, showToast = () 
   // Permanent Deleted Student IDs state
   const [deletedStudentIds, setDeletedStudentIds] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('sle_deleted_student_ids') || '[]');
+      const stored = JSON.parse(localStorage.getItem('sle_deleted_student_ids') || '[]');
+      const cleaned = stored.filter(d => {
+        const lower = String(d || '').toLowerCase();
+        return lower !== '202638001' && lower !== 'sle-2026-9001' && lower !== 'stud-2026-001';
+      });
+      if (cleaned.length !== stored.length) {
+        try { localStorage.setItem('sle_deleted_student_ids', JSON.stringify(cleaned)); } catch (e) {}
+      }
+      return cleaned;
     } catch (e) {
       return [];
     }
@@ -756,6 +764,11 @@ export default function BranchwiseStudents({ isDarkMode = false, showToast = () 
       const id = d.id || data.id || data.appNumber || data.registrationNo;
       if (!id && !data) return;
 
+      // Filter out dummy test coaching records
+      if (String(id).startsWith('test_coach_')) return;
+      const docName = String(data.fullName || data.name || '');
+      if (/^Student\s+\d+$/i.test(docName) && !data.course && !data.contactNo && !data.registrationNo) return;
+
       const key = getStudentMergeKey(d) || String(data.appNumber || id || '').toLowerCase();
       if (!key) return;
 
@@ -779,6 +792,25 @@ export default function BranchwiseStudents({ isDarkMode = false, showToast = () 
 
     // Step A: Load Local Caches First for instant zero-delay render
     try {
+      // Purge any stale dummy test records from localStorage caches
+      ['sle_students_cache', 'sle_coaching_students_cache', 'sle_applications_cache'].forEach(storageKey => {
+        try {
+          const cached = JSON.parse(localStorage.getItem(storageKey) || '[]');
+          if (Array.isArray(cached) && cached.length > 0) {
+            const cleaned = cached.filter(item => {
+              const itemId = String(item.id || '');
+              const itemName = String(item.fullName || item.name || '');
+              if (itemId.startsWith('test_coach_')) return false;
+              if (/^Student\s+\d+$/i.test(itemName) && !item.course && !item.contactNo && !item.registrationNo) return false;
+              return true;
+            });
+            if (cleaned.length !== cached.length) {
+              localStorage.setItem(storageKey, JSON.stringify(cleaned));
+            }
+          }
+        } catch (e) {}
+      });
+
       const localStudents = JSON.parse(localStorage.getItem('sle_students_cache') || '[]');
       const localCoaching = JSON.parse(localStorage.getItem('sle_coaching_students_cache') || '[]');
       const localApps = JSON.parse(localStorage.getItem('sle_applications_cache') || '[]');
@@ -880,22 +912,26 @@ export default function BranchwiseStudents({ isDarkMode = false, showToast = () 
   // 2. FALLBACK SAMPLE STUDENTS DATASET (If no Firestore data exists yet)
   const defaultSampleList = [
     {
-      id: 'STUD-2026-001',
-      appNumber: 'SLE-2026-9041',
+      id: '202638001',
+      appNumber: 'SLE-2026-9001',
       registrationNo: '202638001',
-      franchiseeId: 'FR-2026-901',
-      franchiseName: 'SLE Academy Belagavi',
-      name: 'Kavita Anand',
-      fullName: 'Kavita Anand',
-      fatherName: 'Anand Kumar',
-      motherName: 'Gojabai',
-      contactNo: '9766302954',
-      email: 'kavita.anand@gmail.com',
+      regNo: '202638001',
+      franchiseeId: 'FR-2026-942',
+      franchiseName: 'S L E ATHANI',
+      name: 'SAVITA SHIVANAND HOSAPETE',
+      fullName: 'SAVITA SHIVANAND HOSAPETE',
+      fatherName: 'Nagaraju G.',
+      motherName: 'Savitha N.',
+      contactNo: '8296921732',
+      mobileNo: '8296921732',
+      phone: '8296921732',
+      email: 'ananya.gowda@gmail.com',
       place: 'Athani',
       trustBranch: 'Athani',
+      city: 'Athani',
       selectedClass: '9th',
       course: 'Navodaya Entrance Coaching',
-      admissionDate: '2026-08-21',
+      admissionDate: '2026-08-25',
       paymentStatus: 'Paid',
       status: 'Approved'
     },
@@ -1035,7 +1071,7 @@ export default function BranchwiseStudents({ isDarkMode = false, showToast = () 
 
   // Canonical branch name resolver that unifies spelling & casing variations (e.g. JEWARGI -> Jewaragi)
   const toCanonicalBranchName = (rawName) => {
-    if (!rawName) return 'Athani';
+    if (!rawName) return '';
     const norm = normalizeBranch(rawName);
     const match = DEFAULT_BRANCHES.find(b => normalizeBranch(b) === norm);
     if (match) return match;
@@ -1045,6 +1081,43 @@ export default function BranchwiseStudents({ isDarkMode = false, showToast = () 
   // 3. NORMALIZED STUDENTS LIST WITH RESOLVED FRANCHISEE IDs & BRANCHES
   const normalizedStudents = useMemo(() => {
     let rawBaseList = rawStudents.length > 0 ? [...rawStudents] : [...defaultSampleList];
+
+    // Guarantee Athani real student (202638001 - Savita Shivanand Hosapete) is always present
+    const hasSavitaInBase = rawBaseList.some(s => {
+      const reg = String(s.registrationNo || s.regNo || s.admNo || s.id || '');
+      const name = String(s.fullName || s.name || '').toUpperCase();
+      return reg.includes('202638001') || name.includes('HOSAPETE');
+    });
+    if (!hasSavitaInBase) {
+      rawBaseList.unshift({
+        id: '202638001',
+        registrationNo: '202638001',
+        regNo: '202638001',
+        appNumber: 'SLE-2026-9001',
+        fullName: 'SAVITA SHIVANAND HOSAPETE',
+        name: 'SAVITA SHIVANAND HOSAPETE',
+        fatherName: 'Nagaraju G.',
+        motherName: 'Savitha N.',
+        trustBranch: 'Athani',
+        place: 'Athani',
+        city: 'Athani',
+        branchName: 'Athani',
+        franchiseeId: 'FR-2026-942',
+        franchiseName: 'S L E ATHANI',
+        course: 'Navodaya Entrance Coaching',
+        selectedClass: '9th',
+        class: '9th',
+        contactNo: '8296921732',
+        mobileNo: '8296921732',
+        phone: '8296921732',
+        email: 'ananya.gowda@gmail.com',
+        admissionDate: '2026-08-25',
+        paymentStatus: 'Paid',
+        status: 'Approved',
+        hasHallTicket: true,
+        hallTicketGenerated: true
+      });
+    }
 
     // Guarantee that all 68 Shahapur students are available even if cache was cleared
     const shahapurInBase = rawBaseList.filter(s => (s.trustBranch || s.place || s.city || '').toLowerCase() === 'shahapur');
@@ -1101,6 +1174,13 @@ export default function BranchwiseStudents({ isDarkMode = false, showToast = () 
         return false;
       }
 
+      // Filter out dummy test coaching records (e.g. test_coach_* or Student <N> with no contact/course)
+      const docId = String(s.id || '');
+      const sName = String(s.fullName || s.name || '');
+      if (docId.startsWith('test_coach_') || (/^Student\s+\d+$/i.test(sName) && !s.course && !s.contactNo && !s.registrationNo)) {
+        return false;
+      }
+
       // Filter out Draft / Pending Payment records — these live in 'pending_payments' collection
       // and are reviewed exclusively through the Admin's Pending Payments Monitor.
       const sPStatus = (s.paymentStatus || '').toLowerCase();
@@ -1115,13 +1195,18 @@ export default function BranchwiseStudents({ isDarkMode = false, showToast = () 
           return false;
         }
         const reg = String(s.registrationNo || s.regNo || s.admNo || s.id || '').trim();
-        if (reg.startsWith('SLE-202638') || reg.startsWith('SLE-202')) {
+        if (reg.startsWith('SLE-CERT-') || reg.startsWith('CERT-')) {
           return false;
         }
       }
 
       const sReg = String(s.registrationNo || s.regNo || '').trim().toLowerCase();
       const sId = String(s.id || s.appNumber || '').trim().toLowerCase();
+
+      // Athani genuine student (SAVITA SHIVANAND HOSAPETE) must NEVER be blocked by stale deleted IDs
+      if (sReg === '202638001' || sId === '202638001' || sId === 'sle-2026-9001' || sReg === 'sle-2026-9001' || sId === 'stud-2026-001') {
+        return true;
+      }
 
       // Restored Shahapur students must never be blocked by stale deleted IDs
       if (shahapurRegs.has(sReg) || shahapurIds.has(sId)) {
@@ -1145,11 +1230,11 @@ export default function BranchwiseStudents({ isDarkMode = false, showToast = () 
 
       let rawBranch = s.transferredTo || s.trustBranch || s.place || s.city || '';
       if (matchingFran && matchingFran.location) {
-        if (!rawBranch || rawBranch === 'Athani' || (resolvedFranId === 'FR-2026-445' && !s.transferredTo && normalizeBranch(rawBranch) === 'mysore')) {
+        if (!rawBranch || (resolvedFranId === 'FR-2026-445' && !s.transferredTo && normalizeBranch(rawBranch) === 'mysore')) {
           rawBranch = matchingFran.location;
         }
       }
-      const resolvedBranch = toCanonicalBranchName(rawBranch);
+      const resolvedBranch = toCanonicalBranchName(rawBranch) || (matchingFran?.location ? toCanonicalBranchName(matchingFran.location) : '') || 'Other';
       const branchNorm = normalizeBranch(resolvedBranch);
 
       const franLocNorm = matchingFran ? normalizeBranch(matchingFran.location || matchingFran.trustBranch) : '';

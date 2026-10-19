@@ -431,7 +431,7 @@ export default function TransactionsPage() {
             </div>
             <div className="mt-3">
               <span className="text-lg font-black text-slate-900">
-                Razorpay Live
+                {import.meta.env.VITE_RAZORPAY_MODE === 'live' ? 'Razorpay Live' : 'Razorpay Test'}
               </span>
               <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
@@ -634,7 +634,7 @@ export default function TransactionsPage() {
                             <span className="text-sm font-black text-slate-900">
                               ₹{Number(t.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                             </span>
-                            <div className="text-[10px] text-slate-400 font-medium">via Razorpay Live</div>
+                            <div className="text-[10px] text-slate-400 font-medium">via {t.gateway || (import.meta.env.VITE_RAZORPAY_MODE === 'live' ? 'Razorpay Live' : 'Razorpay Test')}</div>
                           </td>
 
                           {/* Status */}

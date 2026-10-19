@@ -594,7 +594,11 @@ export default function AdminPortal() {
 
   const isCertPrintUnlocked = isCurrentStudentPaid;
 
-  const liveRazorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID || import.meta.env.VITE_RAZORPAY_LIVE_KEY_ID || import.meta.env.VITE_RAZORPAY_TEST_KEY_ID || 'rzp_live_TSInBiL96HvXCm';
+  const isLiveMode = (import.meta.env.VITE_RAZORPAY_MODE || 'test').toLowerCase() === 'live';
+  const liveRazorpayKey = (
+    import.meta.env.VITE_RAZORPAY_KEY_ID ||
+    (isLiveMode ? (import.meta.env.VITE_RAZORPAY_LIVE_KEY_ID || 'rzp_live_TSInBiL96HvXCm') : (import.meta.env.VITE_RAZORPAY_TEST_KEY_ID || 'rzp_test_SPs6AqG8E3r2Cp'))
+  );
 
   const loadRazorpayScript = () => {
     return new Promise((resolve) => {

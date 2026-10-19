@@ -1,0 +1,23 @@
+# ==========================================
+# Environment Variables & Secrets (CRITICAL)
+# ==========================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+*.secret
+
+# ==========================================
+# Common Build & Dependency Folders
+# ==========================================
+node_modules/
+bower_components/
+build/
+dist/
+out/
+target/
+bin/
+obj/
