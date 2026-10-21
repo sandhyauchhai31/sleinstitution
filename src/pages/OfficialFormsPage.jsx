@@ -8,6 +8,7 @@ import { mergeExamMarksIntoSubjects } from '../utils/questionPaperManager';
 import { filterStudentsForFranchisee } from '../utils/franchiseeFilter';
 import { transferShurapurToShahapur } from '../utils/studentTransfer';
 import { getStudentYear, getAvailableYears } from '../utils/studentYearHelper';
+import { resolveBranchAddressSync, isDetailedCenterAddress } from '../utils/branchManager';
 import { 
   FileText, 
   Award, 
@@ -513,8 +514,14 @@ export default function OfficialFormsPage() {
     const storedCerts = JSON.parse(localStorage.getItem('sle_registered_certificates') || '{}');
     const existingCert = storedCerts[adm] || storedCerts[rollNo];
 
+    const syncAddr = resolveBranchAddressSync(student);
     if (existingCert) {
-      setCertFormData(existingCert);
+      setCertFormData({
+        ...existingCert,
+        branchAddress: isDetailedCenterAddress(existingCert.branchAddress, student)
+          ? existingCert.branchAddress
+          : (syncAddr || existingCert.branchAddress || 'Main Road karnataka bank opposite near old bus stand Shahapur')
+      });
     } else {
       setCertFormData({
         admNo: adm,
@@ -527,7 +534,7 @@ export default function OfficialFormsPage() {
         division: 'FIRST CLASS',
         issueDate: new Date().toISOString().split('T')[0],
         trainingCenter: student.trainingCenter || student.branchName || student.trustBranch || 'MYSORE',
-        branchAddress: student.branchAddress || student.place || student.location || 'KARNATAKA',
+        branchAddress: syncAddr || student.branchAddress || student.place || student.location || 'KARNATAKA',
         photoUrl: student.photoUrl || ''
       });
     }

@@ -1,7 +1,7 @@
 import { db, collection, getDocs, doc, setDoc, deleteDoc } from '../firebase';
 
 const CACHE_KEY = 'sle_transactions_cache';
-const DEFAULT_GATEWAY = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_RAZORPAY_MODE === 'live') ? 'Razorpay Live' : 'Razorpay Test';
+const DEFAULT_GATEWAY = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_RAZORPAY_MODE === 'test') ? 'Razorpay Test' : 'Razorpay Live';
 
 /**
  * Helper to safely parse any date/time format (ISO, DD/MM/YYYY, MM/DD/YYYY, timestamp, etc.) into numeric milliseconds

@@ -1,27 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { getCourseFullName, getCourseShortName, computeOneYearEndDate, computeOneMonthAfterDate } from '../utils/courseManager';
 import { getCertificateConfig } from '../utils/certificateConfigManager';
-import { resolveBranchAddressSync, resolveBranchAddressAsync } from '../utils/branchManager';
+import { resolveBranchAddressSync, resolveBranchAddressAsync, isDetailedCenterAddress } from '../utils/branchManager';
 
 const DOC_W = 794;  // A4 width in px at 96 dpi (210mm)
 const DOC_H = 1123; // A4 height in px at 96 dpi (297mm)
 const SCALE = 0.72;
 
 export default function CertificateTemplate({ initialData, customConfig, showControls = true, isUnlocked = true }) {
-  const [data, setData] = useState({
-    admNo: initialData?.admNo !== undefined ? initialData.admNo : (initialData?.admissionNo || '202638283'),
-    htNo: initialData?.htNo !== undefined ? initialData.htNo : (initialData?.rollNo || 'SLE2026-ALL-8283'),
-    candidateName: initialData?.candidateName !== undefined ? initialData.candidateName : (initialData?.studentName || 'TEST04'),
-    fatherName: initialData?.fatherName !== undefined ? initialData.fatherName : (initialData?.parentName || 'TEST04'),
-    courseCode: initialData?.courseCode !== undefined ? initialData.courseCode : (initialData?.course || 'C++'),
-    startDate: initialData?.startDate || '2026-09-03',
-    endDate: initialData?.endDate || '2027-09-06',
-    division: initialData?.division !== undefined ? initialData.division : 'FIRST',
-    courseTitle: initialData?.courseTitle !== undefined ? initialData.courseTitle : (initialData?.courseName || 'C++ PROGRAMMING LANGUAGE'),
-    issueDate: initialData?.issueDate || '2027-10-06',
-    trainingCenter: initialData?.trainingCenter !== undefined ? initialData.trainingCenter : (initialData?.examCenter || 'MYSORE'),
-    branchAddress: initialData?.branchAddress !== undefined ? initialData.branchAddress : (resolveBranchAddressSync(initialData) || 'VISHRAMBAG SANGLI'),
-    photoUrl: initialData?.photoUrl || ''
+  const [data, setData] = useState(() => {
+    const syncAddr = resolveBranchAddressSync(initialData);
+    const resolvedBranchAddr = isDetailedCenterAddress(syncAddr, initialData)
+      ? syncAddr
+      : (isDetailedCenterAddress(initialData?.branchAddress, initialData) ? initialData.branchAddress : (syncAddr || initialData?.branchAddress || 'VISHRAMBAG SANGLI'));
+
+    return {
+      admNo: initialData?.admNo !== undefined ? initialData.admNo : (initialData?.admissionNo || '202638283'),
+      htNo: initialData?.htNo !== undefined ? initialData.htNo : (initialData?.rollNo || 'SLE2026-ALL-8283'),
+      candidateName: initialData?.candidateName !== undefined ? initialData.candidateName : (initialData?.studentName || 'TEST04'),
+      fatherName: initialData?.fatherName !== undefined ? initialData.fatherName : (initialData?.parentName || 'TEST04'),
+      courseCode: initialData?.courseCode !== undefined ? initialData.courseCode : (initialData?.course || 'C++'),
+      startDate: initialData?.startDate || '2026-09-03',
+      endDate: initialData?.endDate || '2027-09-06',
+      division: initialData?.division !== undefined ? initialData.division : 'FIRST',
+      courseTitle: initialData?.courseTitle !== undefined ? initialData.courseTitle : (initialData?.courseName || 'C++ PROGRAMMING LANGUAGE'),
+      issueDate: initialData?.issueDate || '2027-10-06',
+      trainingCenter: initialData?.trainingCenter !== undefined ? initialData.trainingCenter : (initialData?.examCenter || 'MYSORE'),
+      branchAddress: resolvedBranchAddr,
+      photoUrl: initialData?.photoUrl || ''
+    };
   });
 
   const [config, setConfig] = useState(() => customConfig || getCertificateConfig());
@@ -92,6 +99,9 @@ export default function CertificateTemplate({ initialData, customConfig, showCon
         : computeOneMonthAfterDate(eDate);
 
       const syncAddr = resolveBranchAddressSync(initialData);
+      const resolvedBranchAddr = isDetailedCenterAddress(syncAddr, initialData)
+        ? syncAddr
+        : (isDetailedCenterAddress(initialData.branchAddress, initialData) ? initialData.branchAddress : (syncAddr || initialData.branchAddress || prev.branchAddress || 'VISHRAMBAG SANGLI'));
 
       setData(prev => ({
         ...prev,
@@ -106,11 +116,11 @@ export default function CertificateTemplate({ initialData, customConfig, showCon
         courseTitle: initialData.courseTitle !== undefined ? initialData.courseTitle : (initialData.courseName || initialData.course || 'C++ PROGRAMMING LANGUAGE'),
         issueDate: iDate,
         trainingCenter: initialData.trainingCenter !== undefined ? initialData.trainingCenter : (initialData.examCenter || initialData.trustBranch || initialData.place || 'MYSORE'),
-        branchAddress: initialData.branchAddress !== undefined ? initialData.branchAddress : (syncAddr || prev.branchAddress || 'VISHRAMBAG SANGLI'),
+        branchAddress: resolvedBranchAddr,
         photoUrl: initialData.photoUrl || ''
       }));
 
-      if (!initialData.branchAddress) {
+      if (!isDetailedCenterAddress(resolvedBranchAddr, initialData)) {
         resolveBranchAddressAsync(initialData).then(liveAddr => {
           if (isMounted && liveAddr) {
             setData(prev => ({ ...prev, branchAddress: liveAddr }));

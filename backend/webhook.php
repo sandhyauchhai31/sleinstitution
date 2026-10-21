@@ -30,9 +30,9 @@
 // Webhooks arrive from Razorpay servers - no CORS needed.
 header('Content-Type: application/json');
 
-// Load .env manually (same approach as config.php)
+// Load .env manually
 function webhookLoadEnv($envPath) {
-    if (!file_exists($envPath)) return;
+    if (!file_exists($envPath) || !is_readable($envPath)) return;
     $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
     if (!is_array($lines)) return;
     foreach ($lines as $line) {
@@ -41,15 +41,26 @@ function webhookLoadEnv($envPath) {
         $parts = explode('=', $trimmed, 2);
         if (count($parts) < 2) continue;
         $name  = trim($parts[0]);
-        $value = trim($parts[1]);
-        if (!array_key_exists($name, $_SERVER) && !array_key_exists($name, $_ENV)) {
-            putenv(sprintf('%s=%s', $name, $value));
-            $_ENV[$name]    = $value;
-            $_SERVER[$name] = $value;
-        }
+        $value = trim($parts[1], " \t\n\r\0\x0B\"'");
+        putenv(sprintf('%s=%s', $name, $value));
+        $_ENV[$name]    = $value;
+        $_SERVER[$name] = $value;
     }
 }
-webhookLoadEnv(__DIR__ . '/../.env');
+
+$possibleEnvPaths = [
+    __DIR__ . '/.env',
+    __DIR__ . '/../.env',
+    isset($_SERVER['DOCUMENT_ROOT']) ? rtrim($_SERVER['DOCUMENT_ROOT'], '/\\') . '/.env' : null,
+    isset($_SERVER['DOCUMENT_ROOT']) ? rtrim($_SERVER['DOCUMENT_ROOT'], '/\\') . '/backend/.env' : null,
+    dirname(__DIR__, 2) . '/.env'
+];
+
+foreach ($possibleEnvPaths as $envCandidate) {
+    if ($envCandidate && file_exists($envCandidate)) {
+        webhookLoadEnv($envCandidate);
+    }
+}
 
 // Logging helper
 function webhookLog($message, $data = []) {
@@ -75,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // Read raw body and incoming signature
 $rawBody       = file_get_contents('php://input');
 $incomingSig   = trim($_SERVER['HTTP_X_RAZORPAY_SIGNATURE'] ?? '');
-$webhookSecret = getenv('RAZORPAY_WEBHOOK_SECRET') ?: '';
+$webhookSecret = getenv('RAZORPAY_WEBHOOK_SECRET') ?: 'RzpWebhook_9xvjhasSAM1216ghk';
 
 webhookLog('Webhook received', [
     'sig_present' => !empty($incomingSig),

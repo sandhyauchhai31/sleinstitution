@@ -35,7 +35,7 @@ if (php_sapi_name() !== 'cli' && !headers_sent()) {
 
 // Function to load .env variables if file exists
 function loadEnv($envPath) {
-    if (!file_exists($envPath)) {
+    if (!file_exists($envPath) || !is_readable($envPath)) {
         return;
     }
     $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
@@ -46,27 +46,42 @@ function loadEnv($envPath) {
         $parts = explode('=', $trimmed, 2);
         if (count($parts) < 2) continue;
         $name = trim($parts[0]);
-        $value = trim($parts[1]);
-        if (!array_key_exists($name, $_SERVER) && !array_key_exists($name, $_ENV)) {
-            putenv(sprintf('%s=%s', $name, $value));
-            $_ENV[$name] = $value;
-            $_SERVER[$name] = $value;
-        }
+        // Strip outer quotes from value if present
+        $value = trim($parts[1], " \t\n\r\0\x0B\"'");
+        putenv(sprintf('%s=%s', $name, $value));
+        $_ENV[$name] = $value;
+        $_SERVER[$name] = $value;
     }
 }
 
-// Load root .env file
-loadEnv(__DIR__ . '/../.env');
+// Search and load .env from multiple candidate paths
+$possibleEnvPaths = [
+    __DIR__ . '/.env',
+    __DIR__ . '/../.env',
+    isset($_SERVER['DOCUMENT_ROOT']) ? rtrim($_SERVER['DOCUMENT_ROOT'], '/\\') . '/.env' : null,
+    isset($_SERVER['DOCUMENT_ROOT']) ? rtrim($_SERVER['DOCUMENT_ROOT'], '/\\') . '/backend/.env' : null,
+    dirname(__DIR__, 2) . '/.env'
+];
 
-// Dynamically select credentials based on active mode
-$razorpayMode = (getenv('VITE_RAZORPAY_MODE') ?: 'test') === 'live' ? 'live' : 'test';
+foreach ($possibleEnvPaths as $envCandidate) {
+    if ($envCandidate && file_exists($envCandidate)) {
+        loadEnv($envCandidate);
+    }
+}
+
+// Dynamically select credentials based on active mode (DEFAULT: 'live')
+$configuredMode = strtolower(trim((string)(
+    getenv('VITE_RAZORPAY_MODE') ?: (getenv('RAZORPAY_MODE') ?: 'live')
+)));
+$razorpayMode = ($configuredMode === 'test') ? 'test' : 'live';
 
 if ($razorpayMode === 'test') {
-    $activeKeyId     = getenv('VITE_RAZORPAY_TEST_KEY_ID') ?: (getenv('TEST_RAZORPAY_KEY_ID') ?: (getenv('VITE_RAZORPAY_KEY_ID') ?: (getenv('key_id') ?: 'rzp_test_SPs6AqG8E3r2Cp')));
-    $activeKeySecret = getenv('RAZORPAY_TEST_KEY_SECRET') ?: (getenv('TEST_RAZORPAY_KEY_SECRET') ?: (getenv('VITE_RAZORPAY_KEY_SECRET') ?: (getenv('key_secret') ?: '6EF1JJ2U4Hy5h93WPHVb6GZg')));
+    $activeKeyId     = getenv('VITE_RAZORPAY_TEST_KEY_ID') ?: (getenv('TEST_RAZORPAY_KEY_ID') ?: (getenv('RAZORPAY_TEST_KEY_ID') ?: 'rzp_test_SPs6AqG8E3r2Cp'));
+    $activeKeySecret = getenv('RAZORPAY_TEST_KEY_SECRET') ?: (getenv('TEST_RAZORPAY_KEY_SECRET') ?: '6EF1JJ2U4Hy5h93WPHVb6GZg');
 } else {
-    $activeKeyId     = getenv('RAZORPAY_LIVE_KEY_ID') ?: (getenv('VITE_RAZORPAY_LIVE_KEY_ID') ?: (getenv('VITE_RAZORPAY_KEY_ID') ?: (getenv('key_id') ?: 'rzp_live_TSInBiL96HvXCm')));
-    $activeKeySecret = getenv('RAZORPAY_LIVE_KEY_SECRET') ?: (getenv('VITE_RAZORPAY_LIVE_KEY_SECRET') ?: (getenv('VITE_RAZORPAY_KEY_SECRET') ?: (getenv('key_secret') ?: 'sadn8Oy8K2TVSKV70kPbcQFG')));
+    // Production Live Credentials (Active by default)
+    $activeKeyId     = getenv('RAZORPAY_LIVE_KEY_ID') ?: (getenv('VITE_RAZORPAY_LIVE_KEY_ID') ?: (getenv('VITE_RAZORPAY_KEY_ID') ?: (getenv('RAZORPAY_KEY_ID') ?: (getenv('key_id') ?: 'rzp_live_TSInBiL96HvXCm'))));
+    $activeKeySecret = getenv('RAZORPAY_LIVE_KEY_SECRET') ?: (getenv('VITE_RAZORPAY_LIVE_KEY_SECRET') ?: (getenv('VITE_RAZORPAY_KEY_SECRET') ?: (getenv('RAZORPAY_KEY_SECRET') ?: (getenv('key_secret') ?: 'sadn8Oy8K2TVSKV70kPbcQFG'))));
 }
 
 define('RAZORPAY_MODE', $razorpayMode);

@@ -25,7 +25,7 @@ export default defineConfig(({ mode }) => {
                   const amountPaise = Math.round(amountRupees * 100);
                   const currency = (data.currency || 'INR').toUpperCase();
                   const currentEnv = loadEnv(mode, process.cwd(), '');
-                  const isLiveMode = (currentEnv.VITE_RAZORPAY_MODE || 'test').toLowerCase() === 'live';
+                  const isLiveMode = (currentEnv.VITE_RAZORPAY_MODE || 'live').toLowerCase() === 'live';
                   const keyId = (isLiveMode
                     ? (currentEnv.RAZORPAY_LIVE_KEY_ID || currentEnv.VITE_RAZORPAY_LIVE_KEY_ID || currentEnv.VITE_RAZORPAY_KEY_ID || currentEnv.key_id || 'rzp_live_TSInBiL96HvXCm')
                     : (currentEnv.VITE_RAZORPAY_TEST_KEY_ID || currentEnv.TEST_RAZORPAY_KEY_ID || currentEnv.VITE_RAZORPAY_KEY_ID || currentEnv.key_id || 'rzp_test_SPs6AqG8E3r2Cp')
@@ -103,7 +103,7 @@ export default defineConfig(({ mode }) => {
                     order_id: null,
                     amount: 200000,
                     currency: 'INR',
-                    key_id: 'rzp_test_SPs6AqG8E3r2Cp'
+                    key_id: isLiveMode ? 'rzp_live_TSInBiL96HvXCm' : 'rzp_test_SPs6AqG8E3r2Cp'
                   }));
                 }
               });

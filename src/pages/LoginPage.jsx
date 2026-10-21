@@ -1351,11 +1351,12 @@ export default function LoginPage() {
 
     // 2. Fetch Razorpay Order ID from PHP Backend Endpoint
     let orderData = null;
-    const razorpayMode = import.meta.env.VITE_RAZORPAY_MODE || 'test';
+    const razorpayMode = import.meta.env.VITE_RAZORPAY_MODE || 'live';
     const isLiveMode = razorpayMode.toLowerCase() === 'live';
     const razorpayKey = (
-      import.meta.env.VITE_RAZORPAY_KEY_ID ||
-      (isLiveMode ? (import.meta.env.VITE_RAZORPAY_LIVE_KEY_ID || 'rzp_live_TSInBiL96HvXCm') : (import.meta.env.VITE_RAZORPAY_TEST_KEY_ID || 'rzp_test_SPs6AqG8E3r2Cp'))
+      (isLiveMode
+        ? (import.meta.env.VITE_RAZORPAY_LIVE_KEY_ID || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_TSInBiL96HvXCm')
+        : (import.meta.env.VITE_RAZORPAY_TEST_KEY_ID || 'rzp_test_SPs6AqG8E3r2Cp'))
     );
     const backendUrl = import.meta.env.VITE_BACKEND_URL || '/backend';
 
@@ -1612,10 +1613,11 @@ export default function LoginPage() {
 
     // 1. Fetch Razorpay Order from backend endpoint
     let orderData = null;
-    const isLiveMode = (import.meta.env.VITE_RAZORPAY_MODE || 'test').toLowerCase() === 'live';
+    const isLiveMode = (import.meta.env.VITE_RAZORPAY_MODE || 'live').toLowerCase() === 'live';
     const razorpayKey = (
-      import.meta.env.VITE_RAZORPAY_KEY_ID ||
-      (isLiveMode ? (import.meta.env.VITE_RAZORPAY_LIVE_KEY_ID || 'rzp_live_TSInBiL96HvXCm') : (import.meta.env.VITE_RAZORPAY_TEST_KEY_ID || 'rzp_test_SPs6AqG8E3r2Cp'))
+      (isLiveMode
+        ? (import.meta.env.VITE_RAZORPAY_LIVE_KEY_ID || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_TSInBiL96HvXCm')
+        : (import.meta.env.VITE_RAZORPAY_TEST_KEY_ID || 'rzp_test_SPs6AqG8E3r2Cp'))
     );
     const backendUrl = import.meta.env.VITE_BACKEND_URL || '/backend';
 

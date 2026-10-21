@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { db, collection, getDocs, doc, setDoc, getDoc } from '../firebase';
 import { subscribeToCourses, DEFAULT_COURSES, getCourseFullName, getCourseShortName, computeOneYearEndDate, computeOneMonthAfterDate } from '../utils/courseManager';
-import { resolveBranchAddressSync } from '../utils/branchManager';
+import { resolveBranchAddressSync, isDetailedCenterAddress } from '../utils/branchManager';
 import { generateRollNo } from '../utils/examAuthManager';
 import { filterStudentsForFranchisee } from '../utils/franchiseeFilter';
 import { transferShurapurToShahapur } from '../utils/studentTransfer';
@@ -269,7 +269,10 @@ export default function CertificatePage() {
     const courseShort = getCourseShortName(existingCert?.courseCode || student.courseCode || rawCourse || '') || 'TALLY';
     const courseFull = existingCert?.courseTitle ? getCourseFullName(existingCert.courseTitle) : (getCourseFullName(rawCourse || courseShort) || 'TALLY FINANCIAL ACCOUNTING');
 
-    const branchAddr = resolveBranchAddressSync(student) || existingCert?.branchAddress || student.branchAddress || student.trainingCenter || student.branchName || student.trustBranch || student.place || student.location || 'DHARWAD';
+    const syncAddr = resolveBranchAddressSync(student);
+    const branchAddr = isDetailedCenterAddress(syncAddr, student)
+      ? syncAddr
+      : (isDetailedCenterAddress(existingCert?.branchAddress, student) ? existingCert.branchAddress : (syncAddr || existingCert?.branchAddress || student.branchAddress || student.trainingCenter || student.branchName || student.trustBranch || student.place || student.location || 'DHARWAD'));
     const branchName = existingCert?.trainingCenter || student.trainingCenter || student.branchName || student.trustBranch || 'MYSORE';
 
     setCertFormData({
@@ -469,7 +472,7 @@ export default function CertificatePage() {
       division: 'FIRST CLASS',
       issueDate: new Date().toISOString().split('T')[0],
       trainingCenter: student.trainingCenter || student.trustBranch || 'MYSORE',
-      branchAddress: student.branchAddress || student.place || student.location || 'KARNATAKA',
+      branchAddress: resolveBranchAddressSync(student) || student.branchAddress || student.place || student.location || 'KARNATAKA',
       photoUrl: student.photoUrl
     };
 

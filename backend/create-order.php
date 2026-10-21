@@ -74,7 +74,7 @@ try {
             'amount' => $amountInPaise,
             'currency' => $currency,
             'key_id' => RAZORPAY_KEY_ID,
-            'mode' => defined('RAZORPAY_MODE') ? RAZORPAY_MODE : 'test',
+            'mode' => defined('RAZORPAY_MODE') ? RAZORPAY_MODE : 'live',
             'receipt' => $receipt,
             'notice' => 'Fallback order generated. Razorpay HTTP Code: ' . $httpCode . ' ' . $error
         ));

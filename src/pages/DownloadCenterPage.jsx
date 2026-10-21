@@ -12,7 +12,7 @@ import { transferShurapurToShahapur } from '../utils/studentTransfer';
 import { getStudentYear, getAvailableYears } from '../utils/studentYearHelper';
 import { db, collection, getDocs, doc, getDoc, setDoc } from '../firebase';
 import { getCertificateConfig } from '../utils/certificateConfigManager';
-import { resolveBranchAddressSync, resolveBranchAddressAsync } from '../utils/branchManager';
+import { resolveBranchAddressSync, resolveBranchAddressAsync, isDetailedCenterAddress } from '../utils/branchManager';
 import {
   Download,
   FileText,
@@ -134,7 +134,10 @@ function buildCertificateHTML(d, idx, total) {
     ? d.issueDate
     : computeOneMonthAfterDate(endDate);
   const trainingCenter = d.trainingCenter || d.trustBranch || d.branchName || 'SLES Center';
-  const branchAddress = d.branchAddress || resolveBranchAddressSync(d) || trainingCenter;
+  const syncAddr = resolveBranchAddressSync(d);
+  const branchAddress = isDetailedCenterAddress(syncAddr, d)
+    ? syncAddr
+    : (isDetailedCenterAddress(d.branchAddress, d) ? d.branchAddress : (syncAddr || d.branchAddress || trainingCenter));
 
   const candidateNameFs = candidateName.length > 40 ? '11px' : candidateName.length > 30 ? '13px' : candidateName.length > 22 ? '15px' : '18px';
   const fatherNameFs = fatherName.length > 40 ? '11px' : fatherName.length > 30 ? '13px' : fatherName.length > 22 ? '15px' : '18px';
@@ -1195,7 +1198,10 @@ export default function DownloadCenterPage() {
         const candidateName = found?.candidateName || found?.name || found?.fullName || found?.studentName || savedCert?.candidateName || 'STUDENT NAME';
         const fatherName = found?.fatherName || found?.parentName || savedCert?.fatherName || '—';
         const trainingCenter = found?.trustBranch || found?.trainingCenter || found?.franchiseName || found?.branchName || savedCert?.trainingCenter || 'SLES Center';
-        const branchAddress = (found ? resolveBranchAddressSync(found) : '') || savedCert?.branchAddress || resolveBranchAddressSync(savedCert) || 'SLES Center';
+        const syncAddr = resolveBranchAddressSync(found || savedCert) || (found ? resolveBranchAddressSync(found) : '') || (savedCert ? resolveBranchAddressSync(savedCert) : '');
+        const branchAddress = isDetailedCenterAddress(syncAddr, found || savedCert)
+          ? syncAddr
+          : (isDetailedCenterAddress(savedCert?.branchAddress, savedCert) ? savedCert.branchAddress : (isDetailedCenterAddress(found?.branchAddress, found) ? found.branchAddress : (syncAddr || savedCert?.branchAddress || found?.branchAddress || trainingCenter)));
         const photoUrl = found?.photoUrl || found?.photoPreview || found?.photo || found?.candidatePhoto || savedCert?.photoUrl || '';
 
         const mergedCert = {
@@ -1317,7 +1323,7 @@ export default function DownloadCenterPage() {
             endDate: bEndDate,
             issueDate: bIssueDate,
             trainingCenter: r.trustBranch || r.trainingCenter || r.franchiseName || r.branchName || r.place || 'SLES Center',
-            branchAddress: r.branchAddress || resolveBranchAddressSync(r),
+            branchAddress: resolveBranchAddressSync(r) || r.branchAddress,
             examDate: htData?.examDate || r.examDate || bulkExamDate || '2026 Feb, 8',
             examTime: htData?.examTime || r.examTime || bulkExamTime || '10:00 AM to 1:00 PM',
             examPin: htData?.examPin || r.examPin || '',
@@ -1366,7 +1372,7 @@ export default function DownloadCenterPage() {
               endDate: bEndDate,
               issueDate: bIssueDate,
               trainingCenter: r.trustBranch || r.trainingCenter || r.franchiseName || r.branchName || r.place || 'SLES Center',
-              branchAddress: r.branchAddress || resolveBranchAddressSync(r),
+              branchAddress: resolveBranchAddressSync(r) || r.branchAddress,
               examDate: htData?.examDate || r.examDate || bulkExamDate || '2026 Feb, 8',
               examTime: htData?.examTime || r.examTime || bulkExamTime || '10:00 AM to 1:00 PM',
               examPin: htData?.examPin || r.examPin || '',
@@ -1675,7 +1681,7 @@ export default function DownloadCenterPage() {
       courseCode: stdCourse,
       courseTitle: student.courseTitle || student.courseName || stdCourse,
       trainingCenter: student.trainingCenter || student.branchName || student.trustBranch || 'SLES Center',
-      branchAddress: student.branchAddress || resolveBranchAddressSync(student),
+      branchAddress: resolveBranchAddressSync(student) || student.branchAddress,
       startDate: certStartDate,
       endDate: certEndDate,
       division: 'FIRST',
@@ -1684,6 +1690,7 @@ export default function DownloadCenterPage() {
     };
 
     if (savedCert) {
+      const resolvedSync = resolveBranchAddressSync(student) || resolveBranchAddressSync(savedCert);
       certData = {
         ...certData,
         ...savedCert,
@@ -1694,7 +1701,9 @@ export default function DownloadCenterPage() {
         courseCode: stdCourse,
         courseTitle: student.courseTitle || student.courseName || stdCourse,
         trainingCenter: student.trainingCenter || student.branchName || student.trustBranch || certData.trainingCenter,
-        branchAddress: student.branchAddress || resolveBranchAddressSync(student) || certData.branchAddress,
+        branchAddress: isDetailedCenterAddress(resolvedSync, student)
+          ? resolvedSync
+          : (isDetailedCenterAddress(savedCert.branchAddress, savedCert) ? savedCert.branchAddress : (resolvedSync || certData.branchAddress || student.branchAddress)),
         photoUrl: student.photoUrl || student.photoPreview || student.photo || student.candidatePhoto || certData.photoUrl || '',
         startDate: certStartDate,
         endDate: certEndDate
@@ -1857,7 +1866,7 @@ ${pages}
         courseTitle: student.courseTitle || student.courseName || stdCourse,
         course: stdCourse,
         trainingCenter: student.trainingCenter || student.branchName || student.trustBranch || 'SLES Center',
-        branchAddress: student.branchAddress || resolveBranchAddressSync(student),
+        branchAddress: resolveBranchAddressSync(student) || student.branchAddress,
         startDate: student.startDate || student.admissionDate || '2025-01-01',
         endDate: student.endDate || student.completionDate || '2026-01-01',
         division: savedCert?.division || 'FIRST CLASS',

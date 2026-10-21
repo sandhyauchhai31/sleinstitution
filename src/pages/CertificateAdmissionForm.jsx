@@ -603,10 +603,11 @@ export default function CertificateAdmissionForm() {
     const appNumber = currentDraftAppNumber || ('SLE-CERT-' + Math.floor(100000 + Math.random() * 900000));
     setCurrentDraftAppNumber(appNumber);
 
-    const isLiveMode = (import.meta.env.VITE_RAZORPAY_MODE || 'test').toLowerCase() === 'live';
+    const isLiveMode = (import.meta.env.VITE_RAZORPAY_MODE || 'live').toLowerCase() === 'live';
     const activeRazorpayKey = (
-      import.meta.env.VITE_RAZORPAY_KEY_ID ||
-      (isLiveMode ? (import.meta.env.VITE_RAZORPAY_LIVE_KEY_ID || 'rzp_live_TSInBiL96HvXCm') : (import.meta.env.VITE_RAZORPAY_TEST_KEY_ID || 'rzp_test_SPs6AqG8E3r2Cp'))
+      (isLiveMode
+        ? (import.meta.env.VITE_RAZORPAY_LIVE_KEY_ID || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_TSInBiL96HvXCm')
+        : (import.meta.env.VITE_RAZORPAY_TEST_KEY_ID || 'rzp_test_SPs6AqG8E3r2Cp'))
     );
     const backendUrl = import.meta.env.VITE_BACKEND_URL || '/backend';
 

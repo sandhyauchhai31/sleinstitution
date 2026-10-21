@@ -489,6 +489,33 @@ export const restoreShahapurBranch = async () => {
     }
   } catch (e) {}
 
+  // 6. Ensure Shahapur Franchisee record (from Image 2) is present in franchisee cache
+  try {
+    const rawF = localStorage.getItem('sle_franchisees_cache');
+    const fList = rawF ? JSON.parse(rawF) : [];
+    const hasShahapurF = fList.some(f => {
+      const fid = (f.id || f.franchiseeId || '').toString().toLowerCase();
+      const loc = (f.location || f.place || '').toString().toLowerCase();
+      return fid === 'fr-shahapur' || loc === 'shahapur';
+    });
+    if (!hasShahapurF) {
+      fList.push(SHAHAPUR_FRANCHISEE_RECORD);
+      localStorage.setItem('sle_franchisees_cache', JSON.stringify(fList));
+    }
+
+    // Sync logged-in portal user if it represents Shahapur
+    const rawPortal = localStorage.getItem('sle_portal_user_data');
+    if (rawPortal) {
+      const pUser = JSON.parse(rawPortal);
+      const pId = (pUser.id || pUser.franchiseeId || '').toString().toLowerCase();
+      const pLoc = (pUser.location || pUser.place || '').toString().toLowerCase();
+      if ((pId === 'fr-shahapur' || pLoc === 'shahapur') && (!pUser.centerAddress || pUser.centerAddress.trim().length < 5)) {
+        const mergedPortal = { ...pUser, ...SHAHAPUR_FRANCHISEE_RECORD };
+        localStorage.setItem('sle_portal_user_data', JSON.stringify(mergedPortal));
+      }
+    }
+  } catch (_) {}
+
   // 7. Migrate any Shurapur / Shorapur records to Shahapur
   try {
     await transferShurapurToShahapur();
@@ -499,6 +526,61 @@ export const restoreShahapurBranch = async () => {
   window.dispatchEvent(new Event('storage'));
 
   return { success: true, branch: shahapurBranch };
+};
+
+/**
+ * Canonical Franchisee Record for Shahapur Branch (matches Franchisee Portal profile)
+ */
+export const SHAHAPUR_FRANCHISEE_RECORD = {
+  id: 'FR-SHAHAPUR',
+  franchiseeId: 'FR-SHAHAPUR',
+  environmentId: 'FR-SHAHAPUR',
+  centerName: 'SLE Center Shahapur',
+  franchiseName: 'SLE Center Shahapur',
+  firmName: 'S.L.E.S INSTITUTION',
+  ownerName: 'Shahapur Center Director',
+  email: 'shahapur@sle-academy.org',
+  contactNumber: '7899793591',
+  phone: '7899793591',
+  qualification: 'B A',
+  location: 'Shahapur',
+  place: 'Shahapur',
+  districtState: 'Yadgiri',
+  district: 'Yadgiri',
+  pinCode: '585223',
+  centerPinCode: '585223',
+  residentialAddress: 'jewargi dist Kalaburgi',
+  residentialPinCode: '585223',
+  centerAddress: 'Main Road karnataka bank opposite near old bus stand Shahapur',
+  geographicalCenter: 'Urban',
+  premisesAreaSqFt: '1000',
+  computerSystems: '20',
+  lcdProjector: 'no',
+  noOfClassroom: 1,
+  noOfLab: 1,
+  status: 'Active',
+  paymentStatus: 'Paid',
+  trade: 'Education',
+  affiliationFee: '25500',
+  seatRequire: '20',
+  modeOfPayment: 'Online / Bank Transfer'
+};
+
+/**
+ * Checks if a string is a detailed physical center address (>= 3 words)
+ * and not just a branch name or generic placeholder.
+ */
+export const isDetailedCenterAddress = (addr, studentData = null) => {
+  if (!addr || typeof addr !== 'string') return false;
+  const clean = addr.trim();
+  if (clean.length < 5) return false;
+  if (studentData) {
+    const bName = (studentData.trustBranch || studentData.branch || studentData.branchName || studentData.place || studentData.location || studentData.trainingCenter || '').toString().trim().toLowerCase();
+    if (bName && clean.toLowerCase() === bName) return false;
+  }
+  const generic = ['karnataka', 'mysore', 'dharwad', 'sles center', 'sles head office', 'head office', 'center'];
+  if (generic.includes(clean.toLowerCase())) return false;
+  return clean.split(/\s+/).length >= 3;
 };
 
 /**
@@ -542,8 +624,8 @@ export const formatFranchiseeAddress = (f) => {
 export const matchFranchisee = (studentData, franchiseesList = []) => {
   if (!studentData || !franchiseesList || !franchiseesList.length) return null;
 
-  const fId = (studentData.franchiseeId || studentData.franchiseId || '').toString().trim().toLowerCase();
-  const branchName = (studentData.trustBranch || studentData.branch || studentData.place || studentData.trainingCenter || '').toString().trim().toLowerCase();
+  const fId = (studentData.franchiseeId || studentData.franchiseId || studentData.environmentId || '').toString().trim().toLowerCase();
+  const branchName = (studentData.trustBranch || studentData.branch || studentData.branchName || studentData.place || studentData.location || studentData.trainingCenter || studentData.centerName || studentData.city || '').toString().trim().toLowerCase();
 
   // 1. Exact ID match (doc id or franchiseeId)
   if (fId) {
@@ -561,7 +643,7 @@ export const matchFranchisee = (studentData, franchiseesList = []) => {
     let byLocation = franchiseesList.find(f => {
       const data = f.data || f;
       const loc = (data.location || data.place || data.city || '').toString().trim().toLowerCase();
-      return loc === branchName;
+      return loc && (loc === branchName || branchName === loc);
     });
     if (byLocation) return byLocation;
 
@@ -570,10 +652,10 @@ export const matchFranchisee = (studentData, franchiseesList = []) => {
       const data = f.data || f;
       const loc = (data.location || data.place || data.city || '').toString().trim().toLowerCase();
       const fn = (data.franchiseName || data.centerName || data.name || '').toString().trim().toLowerCase();
-      const fid = (f.id || data.id || '').toString().trim().toLowerCase();
+      const fid = (f.id || data.id || data.franchiseeId || data.environmentId || '').toString().trim().toLowerCase();
       return (loc && (loc.includes(branchName) || branchName.includes(loc))) ||
-             (fn && fn.includes(branchName)) ||
-             (fid && fid.includes(branchName));
+             (fn && (fn.includes(branchName) || branchName.includes(fn))) ||
+             (fid && (fid.includes(branchName) || branchName.includes(fid)));
     });
     if (byLocation) return byLocation;
   }
@@ -582,25 +664,72 @@ export const matchFranchisee = (studentData, franchiseesList = []) => {
 };
 
 /**
- * Synchronous resolver for Branch Address from local cache
+ * Synchronous resolver for Branch Address from local cache and logged-in Franchisee Portal user
  */
 export const resolveBranchAddressSync = (studentData) => {
   if (!studentData) return '';
-  if (studentData.centerAddress && studentData.centerAddress.trim().length > 3) {
+
+  // 1. Direct explicit detailed centerAddress on student record
+  if (isDetailedCenterAddress(studentData.centerAddress, studentData)) {
     return studentData.centerAddress.trim();
   }
-  if (studentData.branchAddress && studentData.branchAddress.trim().length > 3) {
-    return studentData.branchAddress.trim();
-  }
+
+  // 2. FRANCHISEE PORTAL: Always check logged-in Franchisee's profile in localStorage ('sle_portal_user_data')
   try {
-    const cached = JSON.parse(localStorage.getItem('sle_franchisees_cache') || '[]');
-    const matched = matchFranchisee(studentData, cached);
-    if (matched) {
-      const addr = formatFranchiseeAddress(matched);
-      if (addr) return addr;
+    const portalUserRaw = localStorage.getItem('sle_portal_user_data');
+    if (portalUserRaw) {
+      const portalUser = JSON.parse(portalUserRaw);
+      if (portalUser) {
+        // Direct match with portal user
+        const matched = matchFranchisee(studentData, [portalUser]);
+        if (matched) {
+          const addr = formatFranchiseeAddress(matched);
+          if (addr && isDetailedCenterAddress(addr)) return addr;
+        }
+
+        // Check location compatibility
+        const pLoc = (portalUser.location || portalUser.place || portalUser.city || portalUser.franchiseName || portalUser.centerName || portalUser.id || '').toString().trim().toLowerCase();
+        const sLoc = (studentData.trustBranch || studentData.branch || studentData.branchName || studentData.place || studentData.location || studentData.trainingCenter || '').toString().trim().toLowerCase();
+        if (pLoc && sLoc && (pLoc.includes(sLoc) || sLoc.includes(pLoc) || pLoc === sLoc)) {
+          const addr = formatFranchiseeAddress(portalUser);
+          if (addr && isDetailedCenterAddress(addr)) return addr;
+        }
+
+        // In Franchisee Portal for non-admin, portal user represents this center
+        const isPortalUser = localStorage.getItem('sle_portal_user') === 'true';
+        const isAdmin = localStorage.getItem('sle_admin_demo') === 'true' || localStorage.getItem('sle_user_role') === 'admin';
+        if (isPortalUser && !isAdmin) {
+          const addr = formatFranchiseeAddress(portalUser);
+          if (isDetailedCenterAddress(addr)) return addr;
+        }
+      }
     }
   } catch (_) {}
-  return studentData.centerAddress || studentData.trainingCenter || studentData.trustBranch || studentData.place || '';
+
+  // 3. Match against cached franchisees ('sle_franchisees_cache')
+  try {
+    const cached = JSON.parse(localStorage.getItem('sle_franchisees_cache') || '[]');
+    if (Array.isArray(cached) && cached.length > 0) {
+      const matched = matchFranchisee(studentData, cached);
+      if (matched) {
+        const addr = formatFranchiseeAddress(matched);
+        if (addr && isDetailedCenterAddress(addr)) return addr;
+      }
+    }
+  } catch (_) {}
+
+  // 4. Default Shahapur franchisee address resolution if student is from Shahapur
+  const bLow = (studentData.trustBranch || studentData.branch || studentData.branchName || studentData.place || studentData.location || studentData.trainingCenter || studentData.franchiseeId || '').toString().trim().toLowerCase();
+  if (bLow.includes('shahapur') || bLow.includes('shurapur') || bLow.includes('shorapur') || bLow === 'fr-shahapur') {
+    return SHAHAPUR_FRANCHISEE_RECORD.centerAddress;
+  }
+
+  // 5. Existing detailed branchAddress (>= 3 words and not equal to branch name)
+  if (isDetailedCenterAddress(studentData.branchAddress, studentData)) {
+    return studentData.branchAddress.trim();
+  }
+
+  return studentData.centerAddress || studentData.branchAddress || studentData.trainingCenter || studentData.trustBranch || studentData.place || '';
 };
 
 /**
@@ -609,12 +738,47 @@ export const resolveBranchAddressSync = (studentData) => {
 export const resolveBranchAddressAsync = async (studentData) => {
   const syncAddr = resolveBranchAddressSync(studentData);
   // If we already have a detailed center address with multiple words, return immediately
-  if (syncAddr && syncAddr.trim().split(/\s+/).length >= 3) {
+  if (isDetailedCenterAddress(syncAddr, studentData)) {
     return syncAddr;
   }
 
   try {
     if (db) {
+      // 1. Direct fetch by franchiseeId
+      const fId = (studentData?.franchiseeId || studentData?.franchiseId || '').toString().trim();
+      if (fId) {
+        try {
+          const directDoc = await getDoc(doc(db, 'franchisees', fId));
+          if (directDoc.exists()) {
+            const fData = { id: directDoc.id, ...directDoc.data() };
+            const addr = formatFranchiseeAddress(fData);
+            if (addr && isDetailedCenterAddress(addr, studentData)) {
+              return addr;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 2. Fetch logged-in portal user doc if in portal
+      try {
+        const portalUserRaw = localStorage.getItem('sle_portal_user_data');
+        if (portalUserRaw) {
+          const pu = JSON.parse(portalUserRaw);
+          if (pu?.id) {
+            const pDoc = await getDoc(doc(db, 'franchisees', pu.id));
+            if (pDoc.exists()) {
+              const liveP = { id: pDoc.id, ...pDoc.data() };
+              localStorage.setItem('sle_portal_user_data', JSON.stringify(liveP));
+              const addr = formatFranchiseeAddress(liveP);
+              if (addr && isDetailedCenterAddress(addr, studentData)) {
+                return addr;
+              }
+            }
+          }
+        }
+      } catch (_) {}
+
+      // 3. Fallback: query franchisees collection
       const snap = await getDocs(collection(db, 'franchisees'));
       if (!snap.empty) {
         const liveList = [];

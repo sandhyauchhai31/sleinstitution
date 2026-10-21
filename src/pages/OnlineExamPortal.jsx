@@ -25,7 +25,9 @@ import {
   AlertTriangle,
   Loader2,
   GraduationCap,
-  Lock
+  Lock,
+  LayoutGrid,
+  X
 } from 'lucide-react';
 import { getExamById, getAllStoredExamsList, saveStudentExamResult, getExamLiveStatus } from '../utils/questionPaperManager';
 import { getStudentSession, clearStudentSession, markExamAttempted, isExamAlreadyAttempted } from '../utils/examAuthManager';
@@ -52,6 +54,7 @@ export default function OnlineExamPortal() {
   const [timeRemainingSeconds, setTimeRemainingSeconds] = useState(120 * 60);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [isMobilePaletteOpen, setIsMobilePaletteOpen] = useState(false);
 
   // ── Anti-Cheating & Proctoring Security System ──────────────────
   const [tabSwitchWarnings, setTabSwitchWarnings] = useState(0);
@@ -799,105 +802,174 @@ export default function OnlineExamPortal() {
         `}</style>
         
         {/* Top Fixed Exam Control Header */}
-        <header className="sticky top-0 z-40 bg-slate-900 text-white px-4 sm:px-6 py-3 shadow-md border-b border-slate-800">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+        <header className="sticky top-0 z-40 bg-slate-900 text-white px-3 sm:px-6 py-2 sm:py-3 shadow-md border-b border-slate-800">
+          <div className="max-w-7xl mx-auto">
             
-            {/* Left: Exam & Student Info */}
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-rose-600 flex items-center justify-center text-white font-black shrink-0 shadow-md">
-                {examData.course?.[0] || 'E'}
+            {/* DESKTOP / TABLET HEADER (sm and above) */}
+            <div className="hidden sm:flex items-center justify-between gap-4">
+              {/* Left: Exam & Student Info */}
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-rose-600 flex items-center justify-center text-white font-black shrink-0 shadow-md">
+                  {examData.course?.[0] || 'E'}
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-sm font-black text-white truncate">
+                    {examData.examTitle || `${examData.year} - ${examData.course} Exam`}
+                  </h2>
+                  <p className="text-[11px] text-slate-400 truncate">
+                    Candidate: <strong className="text-slate-200">{studentSession?.studentName || 'Candidate'}</strong> ({studentSession?.rollNo || studentSession?.admissionNo || 'Guest / Preview'})
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <h2 className="text-sm font-black text-white truncate">
-                  {examData.examTitle || `${examData.year} - ${examData.course} Exam`}
-                </h2>
-                <p className="text-[11px] text-slate-400 truncate">
-                  Candidate: <strong className="text-slate-200">{studentSession?.studentName || 'Candidate'}</strong> ({studentSession?.rollNo || studentSession?.admissionNo || 'Guest / Preview'})
-                </p>
+
+              {/* Center / Right: Live Countdown Timer, Proctoring Badge & Submit Button */}
+              <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+                {/* Proctoring Active Indicator */}
+                <div
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition shadow-xs ${
+                    tabSwitchWarnings === 0
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                      : tabSwitchWarnings === 1
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                        : 'bg-rose-500/30 text-rose-300 border-rose-500/60 animate-pulse'
+                  }`}
+                  title="Anti-Cheating Proctoring System is Active. Switching tabs is strictly prohibited."
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Proctored • Strikes: {tabSwitchWarnings}/{MAX_STRIKES}</span>
+                </div>
+
+                {/* Fullscreen Toggle Button */}
+                <button
+                  type="button"
+                  onClick={enterFullscreen}
+                  className="hidden md:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition cursor-pointer"
+                  title="Enter Fullscreen"
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                  <span>Fullscreen</span>
+                </button>
+
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl font-mono font-black text-xs sm:text-sm border shadow-inner ${
+                  timeRemainingSeconds < 300 
+                    ? 'bg-rose-500/20 text-rose-400 border-rose-500/50 animate-pulse' 
+                    : 'bg-slate-800 text-amber-400 border-slate-700'
+                }`}>
+                  <Clock className="w-4 h-4 shrink-0" />
+                  <span>{formatTime(timeRemainingSeconds)}</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsConfirmModalOpen(true)}
+                  className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs transition shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Submit Exam</span>
+                </button>
               </div>
             </div>
 
-            {/* Center / Right: Live Countdown Timer, Proctoring Badge & Submit Button */}
-            <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-              {/* Proctoring Active Indicator */}
-              <div
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition shadow-xs ${
-                  tabSwitchWarnings === 0
-                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                    : tabSwitchWarnings === 1
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                      : 'bg-rose-500/30 text-rose-300 border-rose-500/60 animate-pulse'
-                }`}
-                title="Anti-Cheating Proctoring System is Active. Switching tabs is strictly prohibited."
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden sm:inline">Proctored •</span>
-                <span>Strikes: {tabSwitchWarnings}/{MAX_STRIKES}</span>
+            {/* MOBILE HEADER (< sm) */}
+            <div className="flex sm:hidden flex-col gap-1.5">
+              {/* Row 1: Student info on Left, Timer & Submit on Right */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <div className="w-7 h-7 rounded-lg bg-rose-600 flex items-center justify-center text-white font-black text-xs shrink-0 shadow-sm">
+                    {examData.course?.[0] || 'E'}
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-xs font-black text-white truncate leading-tight">
+                      {examData.examTitle || examData.course || 'Exam'}
+                    </h2>
+                    <p className="text-[10px] text-slate-400 truncate leading-tight">
+                      {studentSession?.studentName || 'Candidate'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <div className={`flex items-center gap-1 px-2 py-1 rounded-lg font-mono font-black text-[11px] border shadow-inner ${
+                    timeRemainingSeconds < 300 
+                      ? 'bg-rose-500/20 text-rose-400 border-rose-500/50 animate-pulse' 
+                      : 'bg-slate-800 text-amber-400 border-slate-700'
+                  }`}>
+                    <Clock className="w-3 h-3 shrink-0" />
+                    <span>{formatTime(timeRemainingSeconds)}</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsConfirmModalOpen(true)}
+                    className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 active:from-emerald-700 active:to-teal-700 text-white font-bold text-[11px] transition shadow flex items-center gap-1 cursor-pointer"
+                  >
+                    <Send className="w-3 h-3" />
+                    <span>Submit</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Fullscreen Toggle Button */}
-              <button
-                type="button"
-                onClick={enterFullscreen}
-                className="hidden md:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition cursor-pointer"
-                title="Enter Fullscreen"
-              >
-                <Maximize2 className="w-3.5 h-3.5" />
-                <span>Fullscreen</span>
-              </button>
+              {/* Row 2: Strikes Status & Mobile Palette Drawer Trigger */}
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/80 text-[11px]">
+                <div
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded-md border font-bold text-[10.5px] ${
+                    tabSwitchWarnings === 0
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                      : tabSwitchWarnings === 1
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                        : 'bg-rose-500/30 text-rose-300 border-rose-500/60 animate-pulse'
+                  }`}
+                  title="Anti-Cheating Proctoring System"
+                >
+                  <ShieldCheck className="w-3 h-3 text-emerald-400 shrink-0" />
+                  <span>Strikes: {tabSwitchWarnings}/{MAX_STRIKES}</span>
+                </div>
 
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl font-mono font-black text-xs sm:text-sm border shadow-inner ${
-                timeRemainingSeconds < 300 
-                  ? 'bg-rose-500/20 text-rose-400 border-rose-500/50 animate-pulse' 
-                  : 'bg-slate-800 text-amber-400 border-slate-700'
-              }`}>
-                <Clock className="w-4 h-4 shrink-0" />
-                <span>{formatTime(timeRemainingSeconds)}</span>
+                <button
+                  type="button"
+                  onClick={() => setIsMobilePaletteOpen(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-800 active:bg-slate-700 text-slate-300 border border-slate-700 font-bold text-[10.5px] cursor-pointer"
+                >
+                  <LayoutGrid className="w-3 h-3 text-cyan-400 shrink-0" />
+                  <span>Palette ({allQuestions.length > 0 ? (globalQIndex >= 0 ? globalQIndex : currentQuestionIndex) + 1 : 0}/{allQuestions.length})</span>
+                </button>
               </div>
-
-              <button
-                type="button"
-                onClick={() => setIsConfirmModalOpen(true)}
-                className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs transition shadow-md flex items-center gap-1.5 cursor-pointer"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>Submit Exam</span>
-              </button>
             </div>
+
           </div>
         </header>
 
         {/* Main Content Layout */}
-        <div className="max-w-7xl mx-auto w-full p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
+        <div className="max-w-7xl mx-auto w-full p-3 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 flex-1">
           
           {/* LEFT 8 COLUMNS: QUESTION CARD */}
           <div className="lg:col-span-8 flex flex-col space-y-4">
             
             {/* Question Details Card */}
             {currentQuestion ? (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200 flex-1 flex flex-col justify-between select-none">
+              <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-sm border border-slate-200 flex-1 flex flex-col justify-between select-none">
                 
                 <div>
                   {/* Question Header Pill */}
-                  <div className="flex items-center justify-between gap-3 pb-4 mb-4 border-b border-slate-100">
+                  <div className="flex items-center justify-between gap-3 pb-3 sm:pb-4 mb-3 sm:mb-5 border-b border-slate-100">
                     <div className="flex items-center gap-2">
-                      <span className="px-3.5 py-1.5 rounded-xl bg-rose-100 text-rose-700 font-extrabold text-xs sm:text-sm">
+                      <span className="px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl bg-rose-100 text-rose-700 font-extrabold text-xs sm:text-sm">
                         Question {(globalQIndex >= 0 ? globalQIndex : currentQuestionIndex) + 1} of {allQuestions.length}
                       </span>
                     </div>
 
-                    <span className="text-xs font-bold text-slate-500">
+                    <span className="text-xs font-bold text-slate-500 shrink-0">
                       +{currentQuestion.marks || 1} Mark
                     </span>
                   </div>
 
                   {/* Question Text */}
-                  <div className="text-base sm:text-lg font-bold text-slate-900 leading-relaxed mb-6">
+                  <div className="text-base sm:text-lg font-bold text-slate-900 leading-snug sm:leading-relaxed mb-4 sm:mb-6">
                     {currentQuestion.question || '(No question text entered)'}
                   </div>
 
                   {/* 4 Options Grid */}
-                  <div className="space-y-3">
+                  <div className="space-y-2.5 sm:space-y-3">
                     {['A', 'B', 'C', 'D'].map((optKey, oIdx) => {
                       const optText = currentQuestion.options?.[oIdx] || '';
                       const isSelected = selectedOption === optKey;
@@ -906,20 +978,20 @@ export default function OnlineExamPortal() {
                         <div
                           key={optKey}
                           onClick={() => handleSelectOption(currentQuestion.id, optKey)}
-                          className={`flex items-start gap-3.5 p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                          className={`flex items-start gap-3 p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 transition-all cursor-pointer active:scale-[0.99] ${
                             isSelected
                               ? 'border-rose-600 bg-rose-50/50 shadow-sm'
                               : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/80 bg-white'
                           }`}
                         >
-                          <div className={`w-7 h-7 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 transition-all ${
+                          <div className={`w-7 h-7 rounded-lg sm:rounded-xl flex items-center justify-center font-bold text-xs shrink-0 transition-all ${
                             isSelected
                               ? 'bg-rose-600 text-white shadow-md'
                               : 'bg-slate-100 text-slate-700 border border-slate-200'
                           }`}>
                             {optKey}
                           </div>
-                          <div className="text-sm font-medium text-slate-800 pt-0.5 flex-1">
+                          <div className="text-xs sm:text-sm font-medium text-slate-800 pt-1 sm:pt-0.5 flex-1 break-words">
                             {optText || `Option ${optKey}`}
                           </div>
                         </div>
@@ -929,18 +1001,18 @@ export default function OnlineExamPortal() {
                 </div>
 
                 {/* Bottom Navigation & Action Bar */}
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-6 mt-6 border-t border-slate-100">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3 pt-4 sm:pt-6 mt-4 sm:mt-6 border-t border-slate-100">
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
                     <button
                       type="button"
                       onClick={() => handleToggleMarkReview(currentQuestion.id)}
-                      className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 cursor-pointer ${
+                      className={`flex-1 sm:flex-initial px-3 sm:px-3.5 py-2.5 sm:py-2 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
                         isMarked
                           ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
                           : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                       }`}
                     >
-                      <BookmarkCheck className="w-3.5 h-3.5" />
+                      <BookmarkCheck className="w-3.5 h-3.5 shrink-0" />
                       <span>{isMarked ? 'Marked for Review' : 'Mark for Review'}</span>
                     </button>
 
@@ -948,21 +1020,21 @@ export default function OnlineExamPortal() {
                       <button
                         type="button"
                         onClick={() => handleClearResponse(currentQuestion.id)}
-                        className="px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                        className="px-2.5 sm:px-3 py-2.5 sm:py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-100 transition cursor-pointer active:scale-95 shrink-0"
                       >
-                        Clear Selection
+                        Clear
                       </button>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 ml-auto">
+                  <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto sm:ml-auto">
                     <button
                       type="button"
                       disabled={currentQuestionIndex === 0}
                       onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))}
-                      className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 disabled:opacity-40 transition flex items-center gap-1 cursor-pointer"
+                      className="w-full sm:w-auto justify-center px-4 py-2.5 sm:py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 disabled:opacity-40 transition flex items-center gap-1 cursor-pointer active:scale-95"
                     >
-                      <ChevronLeft className="w-4 h-4" />
+                      <ChevronLeft className="w-4 h-4 shrink-0" />
                       <span>Previous</span>
                     </button>
 
@@ -970,17 +1042,17 @@ export default function OnlineExamPortal() {
                       type="button"
                       disabled={currentQuestionIndex >= filteredQuestions.length - 1}
                       onClick={() => setCurrentQuestionIndex(prev => Math.min(filteredQuestions.length - 1, prev + 1))}
-                      className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold disabled:opacity-40 transition flex items-center gap-1 cursor-pointer"
+                      className="w-full sm:w-auto justify-center px-5 py-2.5 sm:py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold disabled:opacity-40 transition flex items-center gap-1 cursor-pointer active:scale-95"
                     >
                       <span>Next</span>
-                      <ChevronRight className="w-4 h-4" />
+                      <ChevronRight className="w-4 h-4 shrink-0" />
                     </button>
                   </div>
                 </div>
 
               </div>
             ) : (
-              <div className="bg-white rounded-3xl p-12 text-center text-slate-500">
+              <div className="bg-white rounded-2xl sm:rounded-3xl p-8 sm:p-12 text-center text-slate-500">
                 No questions found in this section.
               </div>
             )}
@@ -990,22 +1062,22 @@ export default function OnlineExamPortal() {
           <div className="lg:col-span-4 flex flex-col space-y-4">
             
             {/* Status Counters Widget */}
-            <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-sm border border-slate-200 space-y-3">
+            <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 shadow-sm border border-slate-200 space-y-3">
               <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
                 Examination Overview
               </h3>
 
               <div className="grid grid-cols-3 gap-2 text-center text-xs font-bold">
-                <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 p-2.5 rounded-2xl">
-                  <span className="text-lg font-black block text-emerald-600">{answeredCount}</span>
+                <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 p-2 sm:p-2.5 rounded-xl sm:rounded-2xl">
+                  <span className="text-base sm:text-lg font-black block text-emerald-600">{answeredCount}</span>
                   <span className="text-[10px]">Answered</span>
                 </div>
-                <div className="bg-amber-50 text-amber-800 border border-amber-200 p-2.5 rounded-2xl">
-                  <span className="text-lg font-black block text-amber-600">{reviewCount}</span>
+                <div className="bg-amber-50 text-amber-800 border border-amber-200 p-2 sm:p-2.5 rounded-xl sm:rounded-2xl">
+                  <span className="text-base sm:text-lg font-black block text-amber-600">{reviewCount}</span>
                   <span className="text-[10px]">Review</span>
                 </div>
-                <div className="bg-slate-100 text-slate-700 border border-slate-200 p-2.5 rounded-2xl">
-                  <span className="text-lg font-black block text-slate-800">{unansweredCount}</span>
+                <div className="bg-slate-100 text-slate-700 border border-slate-200 p-2 sm:p-2.5 rounded-xl sm:rounded-2xl">
+                  <span className="text-base sm:text-lg font-black block text-slate-800">{unansweredCount}</span>
                   <span className="text-[10px]">Pending</span>
                 </div>
               </div>
@@ -1026,7 +1098,7 @@ export default function OnlineExamPortal() {
             </div>
 
             {/* Question Number Palette Grid */}
-            <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-sm border border-slate-200 flex-1 flex flex-col">
+            <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 shadow-sm border border-slate-200 flex-1 flex flex-col">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
                   Question Palette ({filteredQuestions.length})
@@ -1034,7 +1106,7 @@ export default function OnlineExamPortal() {
                 <span className="text-[10px] text-slate-400 font-semibold">Click to jump</span>
               </div>
 
-              <div className="grid grid-cols-5 sm:grid-cols-5 gap-2 max-h-[360px] overflow-y-auto p-1 pr-2">
+              <div className="grid grid-cols-6 sm:grid-cols-5 gap-1.5 sm:gap-2 max-h-[300px] sm:max-h-[360px] overflow-y-auto p-1 pr-1.5">
                 {filteredQuestions.map((q, idx) => {
                   const isCurrent = q.id === currentQuestion?.id;
                   const isAns = !!answers[q.id];
@@ -1053,8 +1125,11 @@ export default function OnlineExamPortal() {
                     <button
                       key={q.id}
                       type="button"
-                      onClick={() => setCurrentQuestionIndex(idx)}
-                      className={`h-10 rounded-xl font-bold text-xs border transition-all cursor-pointer flex items-center justify-center relative ${btnStyle} ${
+                      onClick={() => {
+                        setCurrentQuestionIndex(idx);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className={`h-9 sm:h-10 rounded-lg sm:rounded-xl font-bold text-xs border transition-all cursor-pointer flex items-center justify-center relative ${btnStyle} ${
                         isCurrent ? 'ring-2 ring-rose-500 ring-offset-2 scale-105 z-10' : ''
                       }`}
                     >
@@ -1071,7 +1146,7 @@ export default function OnlineExamPortal() {
               <button
                 type="button"
                 onClick={() => setIsConfirmModalOpen(true)}
-                className="w-full mt-4 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full mt-4 py-3 rounded-xl sm:rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-2 cursor-pointer active:scale-98"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Submit All Responses</span>
@@ -1082,10 +1157,108 @@ export default function OnlineExamPortal() {
 
         </div>
 
+        {/* Mobile Slide-up Question Palette Drawer */}
+        {isMobilePaletteOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex flex-col justify-end lg:hidden animate-in fade-in duration-200">
+            <div 
+              className="absolute inset-0"
+              onClick={() => setIsMobilePaletteOpen(false)}
+            />
+            <div className="relative bg-white rounded-t-3xl p-4 sm:p-5 max-h-[85vh] flex flex-col shadow-2xl border-t border-slate-200 animate-in slide-in-from-bottom duration-300">
+              {/* Drawer handle */}
+              <div className="w-12 h-1.5 rounded-full bg-slate-300 mx-auto mb-3" />
+              
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">Question Palette</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">Tap any question to jump</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsMobilePaletteOpen(false)}
+                  className="w-8 h-8 rounded-full bg-slate-100 active:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-xs"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Compact Stats */}
+              <div className="grid grid-cols-3 gap-2 my-3 text-center text-xs font-bold">
+                <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 p-2 rounded-xl">
+                  <span className="text-base font-black block text-emerald-600">{answeredCount}</span>
+                  <span className="text-[10px]">Answered</span>
+                </div>
+                <div className="bg-amber-50 text-amber-800 border border-amber-200 p-2 rounded-xl">
+                  <span className="text-base font-black block text-amber-600">{reviewCount}</span>
+                  <span className="text-[10px]">Review</span>
+                </div>
+                <div className="bg-slate-100 text-slate-700 border border-slate-200 p-2 rounded-xl">
+                  <span className="text-base font-black block text-slate-800">{unansweredCount}</span>
+                  <span className="text-[10px]">Pending</span>
+                </div>
+              </div>
+
+              {/* Grid */}
+              <div className="grid grid-cols-6 gap-1.5 overflow-y-auto max-h-[48vh] p-1 pr-1">
+                {filteredQuestions.map((q, idx) => {
+                  const isCurrent = q.id === currentQuestion?.id;
+                  const isAns = !!answers[q.id];
+                  const isRev = !!markedForReview[q.id];
+
+                  let btnStyle = 'bg-slate-100 text-slate-700 border-slate-200';
+                  if (isAns && isRev) {
+                    btnStyle = 'bg-amber-500 text-white border-amber-600';
+                  } else if (isAns) {
+                    btnStyle = 'bg-emerald-600 text-white border-emerald-700';
+                  } else if (isRev) {
+                    btnStyle = 'bg-amber-100 text-amber-800 border-amber-300';
+                  }
+
+                  return (
+                    <button
+                      key={q.id}
+                      type="button"
+                      onClick={() => {
+                        setCurrentQuestionIndex(idx);
+                        setIsMobilePaletteOpen(false);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className={`h-10 rounded-xl font-bold text-xs border transition flex items-center justify-center relative ${btnStyle} ${
+                        isCurrent ? 'ring-2 ring-rose-500 ring-offset-1 scale-105 z-10' : ''
+                      }`}
+                    >
+                      <span>{q.qNo || idx + 1}</span>
+                      {isRev && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-300 absolute top-1 right-1" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Submit button in drawer */}
+              <div className="pt-3 mt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobilePaletteOpen(false);
+                    setIsConfirmModalOpen(true);
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Submit All Responses</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Confirmation Modal */}
         {isConfirmModalOpen && (
-          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in zoom-in-95">
+          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+            <div className="bg-white rounded-2xl sm:rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4 animate-in zoom-in-95 max-h-[92vh] overflow-y-auto">
               <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
                 <FileCheck className="w-6 h-6" />
               </div>
@@ -1134,13 +1307,13 @@ export default function OnlineExamPortal() {
 
         {/* Mandatory Fullscreen Prompt Modal */}
         {showFullscreenRequiredModal && !warningModalOpen && (
-          <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="max-w-md w-full bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200 text-center space-y-5">
-              <div className="w-16 h-16 rounded-2xl bg-cyan-100 text-cyan-700 flex items-center justify-center mx-auto shadow-inner">
-                <Maximize2 className="w-8 h-8" />
+          <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+            <div className="max-w-md w-full bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-2xl border border-slate-200 text-center space-y-4 sm:space-y-5 max-h-[92vh] overflow-y-auto">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-cyan-100 text-cyan-700 flex items-center justify-center mx-auto shadow-inner">
+                <Maximize2 className="w-7 h-7 sm:w-8 sm:h-8" />
               </div>
-              <div className="space-y-2">
-                <h3 className="text-xl font-black text-slate-900">
+              <div className="space-y-1.5 sm:space-y-2">
+                <h3 className="text-lg sm:text-xl font-black text-slate-900">
                   Mandatory Fullscreen Mode
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
@@ -1148,12 +1321,12 @@ export default function OnlineExamPortal() {
                 </p>
               </div>
 
-              <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200 text-left text-xs text-amber-900 space-y-1.5">
+              <div className="bg-amber-50 rounded-2xl p-3.5 sm:p-4 border border-amber-200 text-left text-xs text-amber-900 space-y-1.5">
                 <div className="font-bold flex items-center gap-1.5 text-amber-900">
                   <ShieldAlert className="w-4 h-4 shrink-0 text-amber-600" />
                   <span>Proctoring Security Rules:</span>
                 </div>
-                <ul className="list-disc pl-5 space-y-1 text-[11.5px] text-amber-800">
+                <ul className="list-disc pl-5 space-y-1 text-[11px] sm:text-[11.5px] text-amber-800">
                   <li>Do not switch tabs or open new tabs (3 strikes = auto-submit).</li>
                   <li>Do not exit fullscreen mode until finished.</li>
                   <li>Keyboard shortcuts (Ctrl+T, Ctrl+N, F12) and copy/paste are disabled.</li>
@@ -1163,7 +1336,7 @@ export default function OnlineExamPortal() {
               <button
                 type="button"
                 onClick={enterFullscreen}
-                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-cyan-600 via-sky-600 to-indigo-600 hover:from-cyan-700 hover:to-indigo-700 text-white font-black text-sm shadow-lg shadow-cyan-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                className="w-full py-3 sm:py-3.5 rounded-2xl bg-gradient-to-r from-cyan-600 via-sky-600 to-indigo-600 hover:from-cyan-700 hover:to-indigo-700 text-white font-black text-xs sm:text-sm shadow-lg shadow-cyan-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
               >
                 <Maximize2 className="w-4 h-4" />
                 <span>Enter Fullscreen &amp; Continue Exam</span>
@@ -1174,34 +1347,34 @@ export default function OnlineExamPortal() {
 
         {/* Security Violation Strike Warning Modal */}
         {warningModalOpen && (
-          <div className="fixed inset-0 z-50 bg-rose-950/90 backdrop-blur-md flex items-center justify-center p-4 animate-in zoom-in-95 duration-200">
-            <div className="max-w-md w-full bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border-2 border-rose-500 text-center space-y-5">
+          <div className="fixed inset-0 z-50 bg-rose-950/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in zoom-in-95 duration-200">
+            <div className="max-w-md w-full bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-2xl border-2 border-rose-500 text-center space-y-4 sm:space-y-5 max-h-[92vh] overflow-y-auto">
               
               {/* Pulsing Warning Icon */}
               <div className="relative flex items-center justify-center">
-                <div className="w-20 h-20 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 animate-pulse">
-                  <ShieldAlert className="w-10 h-10" />
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 animate-pulse">
+                  <ShieldAlert className="w-8 h-8 sm:w-10 sm:h-10" />
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <span className="px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-300 inline-block">
+              <div className="space-y-1 sm:space-y-1.5">
+                <span className="px-3 sm:px-3.5 py-0.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-black uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-300 inline-block">
                   Security Violation: Warning {tabSwitchWarnings} of {MAX_STRIKES}
                 </span>
-                <h3 className="text-xl font-black text-slate-900 pt-1">
+                <h3 className="text-lg sm:text-xl font-black text-slate-900 pt-1">
                   Tab Switch or Navigation Detected!
                 </h3>
-                <p className="text-xs text-rose-700 font-semibold bg-rose-50 rounded-xl p-2.5 border border-rose-200">
+                <p className="text-xs text-rose-700 font-semibold bg-rose-50 rounded-xl p-2 sm:p-2.5 border border-rose-200">
                   {warningReason || 'Leaving the examination window or switching tabs is strictly forbidden.'}
                 </p>
               </div>
 
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-xs text-slate-600 space-y-2 text-left">
+              <div className="bg-slate-50 rounded-2xl p-3 sm:p-4 border border-slate-200 text-xs text-slate-600 space-y-1.5 sm:space-y-2 text-left">
                 <div className="font-bold text-slate-900 flex items-center gap-1.5">
                   <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
                   <span>Important Notice:</span>
                 </div>
-                <p className="text-slate-600 leading-relaxed text-[11.5px]">
+                <p className="text-slate-600 leading-relaxed text-[11px] sm:text-[11.5px]">
                   All tab changes, shortcuts, and focus losses are logged in real-time. 
                   You have <strong className="text-rose-600">{MAX_STRIKES - tabSwitchWarnings} warning(s)</strong> remaining. If you leave this window again, your examination will be <strong>permanently auto-submitted and cancelled</strong>.
                 </p>
@@ -1214,7 +1387,7 @@ export default function OnlineExamPortal() {
                   warningModalOpenRef.current = false;
                   enterFullscreen();
                 }}
-                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-700 hover:to-red-800 text-white font-black text-sm shadow-lg shadow-rose-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                className="w-full py-3 sm:py-3.5 rounded-2xl bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-700 hover:to-red-800 text-white font-black text-xs sm:text-sm shadow-lg shadow-rose-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
               >
                 <span>I Understand &bull; Return to Exam</span>
               </button>
@@ -1233,8 +1406,8 @@ export default function OnlineExamPortal() {
     const isTerminatedDisqualified = examResult?.isDisqualified || isDisqualified;
 
     return (
-      <div className="min-h-[85vh] py-12 px-4 sm:px-6 bg-slate-50 flex items-center justify-center">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden text-center p-8 sm:p-10 space-y-6 animate-in fade-in zoom-in-95 duration-300">
+      <div className="min-h-[85vh] py-8 sm:py-12 px-3 sm:px-6 bg-slate-50 flex items-center justify-center">
+        <div className="max-w-md w-full bg-white rounded-2xl sm:rounded-3xl shadow-xl border border-slate-200 overflow-hidden text-center p-6 sm:p-10 space-y-5 sm:space-y-6 animate-in fade-in zoom-in-95 duration-300">
           
           {/* Status Badge */}
           {isTerminatedDisqualified ? (
