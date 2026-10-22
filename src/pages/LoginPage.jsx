@@ -316,12 +316,17 @@ export default function LoginPage() {
     if (regFormStep === 1) {
       const owner = (regForm.ownerName || regFranchiseeName).trim();
       const contact = (regForm.contactNumber || regMobile).trim();
+      const loc = (regForm.place || regLocation || '').trim();
       if (!owner) {
         setRegError('Please enter Owner Name to proceed.');
         return;
       }
       if (!contact) {
         setRegError('Please enter Contact Number to proceed.');
+        return;
+      }
+      if (!loc) {
+        setRegError('Please select Location to proceed.');
         return;
       }
       setRegFormStep(2);
@@ -959,6 +964,12 @@ export default function LoginPage() {
     }
     if (!cleanPhone) {
       setRegError('Please enter Contact Number in Step 1.');
+      setRegFormStep(1);
+      return;
+    }
+    const cleanLocation = (regForm.place || regLocation || '').trim();
+    if (!cleanLocation) {
+      setRegError('Please select Location in Step 1.');
       setRegFormStep(1);
       return;
     }
@@ -2510,15 +2521,17 @@ export default function LoginPage() {
                       {/* Location */}
                       <div className="space-y-1.5">
                         <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                          Location
+                          Location <span className="text-red-500">*</span>
                         </label>
                         <div className="relative">
                           <MapPin className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400 pointer-events-none" />
                           <select
+                            required
                             value={regForm.place || regLocation}
                             onChange={(e) => {
                               setRegForm({ ...regForm, place: e.target.value });
                               setRegLocation(e.target.value);
+                              setRegError('');
                             }}
                             className="w-full pl-10 pr-10 py-2.5 bg-slate-50/80 border border-slate-200/90 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-red-600 focus:bg-white focus:ring-2 focus:ring-red-500/20 font-medium transition-all cursor-pointer appearance-none"
                           >

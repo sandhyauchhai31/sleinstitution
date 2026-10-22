@@ -2260,8 +2260,7 @@ export default function AdminPortal() {
           <button class="btn-print no-print" onclick="window.print()">🖨️ Print Question Paper</button>
           <div class="paper-container">
             <div class="header-box">
-              <div class="inst-name">SHREE LAXMI EDUCATION SOCIETY (R.)</div>
-              <div class="inst-sub">NATIONAL COUNCIL OF VOCATIONAL TRAINING & COMPUTER EDUCATION</div>
+              <div class="inst-name">SLE Institutions</div>
               <div class="meta-bar">
                 <div>Course: <strong>${course}</strong></div>
                 <div>Subject: <strong>${subject}</strong></div>
@@ -2274,16 +2273,6 @@ export default function AdminPortal() {
               <div>Roll No: ____________________</div>
               <div>Student Name: ____________________________________</div>
               <div>Signature: ________________</div>
-            </div>
-
-            <div class="instructions-box">
-              <div class="instructions-title">General Instructions:</div>
-              <ol class="instructions-list">
-                <li>This examination paper consists of <strong>${totalQ} Multiple Choice Questions (MCQs)</strong>.</li>
-                <li>Each question carries <strong>2 Marks</strong> (Total = ${totalMarks} Marks).</li>
-                <li>Darken the correct circle (A, B, C, or D) on the OMR answer sheet.</li>
-                <li>Passing marks for this examination is <strong>70 Marks (35%)</strong>.</li>
-              </ol>
             </div>
 
             <div class="questions-list">
@@ -11726,28 +11715,14 @@ export default function AdminPortal() {
                 {/* Paper Header */}
                 <div className="text-center border-b-2 border-slate-900 pb-4 space-y-1">
                   <h2 className="text-base sm:text-lg font-black tracking-wide uppercase">
-                    SHREE LAXMI EDUCATION SOCIETY (R.)
+                    SLE Institutions
                   </h2>
-                  <p className="text-[11px] font-bold text-slate-700">
-                    NATIONAL COUNCIL OF VOCATIONAL TRAINING & COMPUTER EDUCATION
-                  </p>
                   <div className="pt-2 flex flex-wrap items-center justify-between text-[11px] font-bold uppercase border-t border-slate-300 mt-2">
                     <span>Course: <strong>{targetP.courseName}</strong></span>
                     <span>Subject: <strong>{targetP.subjectName}</strong></span>
                     <span>Max Marks: <strong>{targetP.totalMarks || 200}</strong></span>
                     <span>Time: <strong>3 Hours (180 Mins)</strong></span>
                   </div>
-                </div>
-
-                {/* Instructions */}
-                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-300 text-[11px] space-y-1">
-                  <strong className="block font-black uppercase text-slate-800">General Instructions:</strong>
-                  <ol className="list-decimal list-inside space-y-0.5 text-slate-600">
-                    <li>This examination paper consists of <strong>{activeQuestions.length} Multiple Choice Questions (MCQs)</strong>.</li>
-                    <li>Each question carries <strong>2 Marks</strong> (Total = {targetP.totalMarks || 200} Marks).</li>
-                    <li>Darken the correct circle (A, B, C, or D) on the OMR answer sheet.</li>
-                    <li>Passing marks for this examination is <strong>70 Marks (35%)</strong>.</li>
-                  </ol>
                 </div>
 
                 {/* Questions list */}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Users,
   Building2,
@@ -14,6 +14,7 @@ import {
   X,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   Calendar,
   GraduationCap,
   CreditCard,
@@ -207,6 +208,397 @@ export default function BranchwiseStudents({ isDarkMode = false, showToast = () 
     return lower.includes('.pdf') || lower.startsWith('data:application/pdf');
   };
 
+  // ─── Edit Modal Custom Interactive Calendar States & Handlers ───
+  const [editAdmDateDisplay, setEditAdmDateDisplay] = useState('');
+  const [showEditAdmCalPopover, setShowEditAdmCalPopover] = useState(false);
+  const [editAdmCalViewMode, setEditAdmCalViewMode] = useState('days'); // 'days' | 'months' | 'years'
+  const [editAdmCalViewDate, setEditAdmCalViewDate] = useState(() => new Date());
+  const editAdmCalPopoverRef = useRef(null);
+  const editAdmYearsContainerRef = useRef(null);
+
+  const [editDobDisplay, setEditDobDisplay] = useState('');
+  const [showEditDobCalPopover, setShowEditDobCalPopover] = useState(false);
+  const [editDobCalViewMode, setEditDobCalViewMode] = useState('days'); // 'days' | 'months' | 'years'
+  const [editDobCalViewDate, setEditDobCalViewDate] = useState(() => new Date(2005, 0, 1));
+  const editDobCalPopoverRef = useRef(null);
+  const editDobYearsContainerRef = useRef(null);
+
+  // Helper to parse manual date string (DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD, DDMMYYYY, DD Month YYYY)
+  const parseDateString = (text) => {
+    if (!text) return null;
+    const clean = String(text).trim();
+
+    // 1. DD-MM-YYYY or DD/MM/YYYY or DD.MM.YYYY
+    let match = clean.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+    if (match) {
+      const d = parseInt(match[1], 10);
+      const m = parseInt(match[2], 10);
+      const y = match[3];
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return {
+          day: String(d).padStart(2, '0'),
+          month: monthsList[m - 1],
+          monthIndex: m - 1,
+          year: y,
+          iso: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+          display: `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`
+        };
+      }
+    }
+
+    // 2. YYYY-MM-DD
+    match = clean.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+    if (match) {
+      const y = match[1];
+      const m = parseInt(match[2], 10);
+      const d = parseInt(match[3], 10);
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return {
+          day: String(d).padStart(2, '0'),
+          month: monthsList[m - 1],
+          monthIndex: m - 1,
+          year: y,
+          iso: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+          display: `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`
+        };
+      }
+    }
+
+    // 3. 8 continuous digits: DDMMYYYY
+    match = clean.match(/^(\d{2})(\d{2})(\d{4})$/);
+    if (match) {
+      const d = parseInt(match[1], 10);
+      const m = parseInt(match[2], 10);
+      const y = match[3];
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return {
+          day: String(d).padStart(2, '0'),
+          month: monthsList[m - 1],
+          monthIndex: m - 1,
+          year: y,
+          iso: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+          display: `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`
+        };
+      }
+    }
+
+    // 4. DD Month YYYY (e.g. "15 August 2005" or "15-Aug-2005")
+    match = clean.match(/^(\d{1,2})[\s\-_]+([A-Za-z]+)[\s\-_]+(\d{4})$/);
+    if (match) {
+      const d = parseInt(match[1], 10);
+      const mStr = match[2].toLowerCase();
+      const y = match[3];
+      const mIdx = monthsList.findIndex(m => m.toLowerCase().startsWith(mStr.slice(0, 3)));
+      if (mIdx >= 0 && d >= 1 && d <= 31) {
+        return {
+          day: String(d).padStart(2, '0'),
+          month: monthsList[mIdx],
+          monthIndex: mIdx,
+          year: y,
+          iso: `${y}-${String(mIdx + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+          display: `${String(d).padStart(2, '0')}-${String(mIdx + 1).padStart(2, '0')}-${y}`
+        };
+      }
+    }
+
+    return null;
+  };
+
+  // Outside click & Escape listener for Edit Modal Calendar Popovers
+  useEffect(() => {
+    if (!showEditAdmCalPopover && !showEditDobCalPopover) return;
+    const handleClickOutside = (e) => {
+      if (showEditAdmCalPopover && editAdmCalPopoverRef.current && !editAdmCalPopoverRef.current.contains(e.target)) {
+        setShowEditAdmCalPopover(false);
+        setEditAdmCalViewMode('days');
+      }
+      if (showEditDobCalPopover && editDobCalPopoverRef.current && !editDobCalPopoverRef.current.contains(e.target)) {
+        setShowEditDobCalPopover(false);
+        setEditDobCalViewMode('days');
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowEditAdmCalPopover(false);
+        setEditAdmCalViewMode('days');
+        setShowEditDobCalPopover(false);
+        setEditDobCalViewMode('days');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showEditAdmCalPopover, showEditDobCalPopover]);
+
+  // Auto-scroll to selected year when Year view is active
+  useEffect(() => {
+    if (editAdmCalViewMode === 'years' && editAdmYearsContainerRef.current) {
+      const activeBtn = editAdmYearsContainerRef.current.querySelector('[data-selected="true"]');
+      if (activeBtn) activeBtn.scrollIntoView({ block: 'center', behavior: 'auto' });
+    }
+  }, [editAdmCalViewMode]);
+
+  useEffect(() => {
+    if (editDobCalViewMode === 'years' && editDobYearsContainerRef.current) {
+      const activeBtn = editDobYearsContainerRef.current.querySelector('[data-selected="true"]');
+      if (activeBtn) activeBtn.scrollIntoView({ block: 'center', behavior: 'auto' });
+    }
+  }, [editDobCalViewMode]);
+
+  // Admission Date Calendar Handlers
+  const toggleEditAdmCalendar = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!showEditAdmCalPopover) {
+      if (editFormData.admissionDate && /^\d{4}-\d{2}-\d{2}$/.test(editFormData.admissionDate)) {
+        const [y, m, d] = editFormData.admissionDate.split('-').map(Number);
+        setEditAdmCalViewDate(new Date(y, m - 1, d || 1));
+      } else {
+        const parsed = parseDateString(editAdmDateDisplay);
+        if (parsed) {
+          setEditAdmCalViewDate(new Date(parseInt(parsed.year, 10), parsed.monthIndex, parseInt(parsed.day, 10)));
+        } else {
+          setEditAdmCalViewDate(new Date());
+        }
+      }
+      setEditAdmCalViewMode('days');
+      setShowEditAdmCalPopover(true);
+      setShowEditDobCalPopover(false);
+    } else {
+      setShowEditAdmCalPopover(false);
+      setEditAdmCalViewMode('days');
+    }
+  };
+
+  const handleSelectEditAdmDay = (targetYear, targetMonthIndex, targetDay) => {
+    const y = targetYear;
+    const m = targetMonthIndex + 1;
+    const d = targetDay;
+    const isoVal = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const displayStr = `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`;
+
+    setEditAdmDateDisplay(displayStr);
+    setEditFormData(prev => ({
+      ...prev,
+      admissionDate: isoVal
+    }));
+    setShowEditAdmCalPopover(false);
+    setEditAdmCalViewMode('days');
+  };
+
+  const handleManualEditAdmChange = (e) => {
+    const text = e.target.value;
+    setEditAdmDateDisplay(text);
+    const parsed = parseDateString(text);
+    if (parsed) {
+      setEditFormData(prev => ({ ...prev, admissionDate: parsed.iso }));
+      setEditAdmCalViewDate(new Date(parseInt(parsed.year, 10), parsed.monthIndex, parseInt(parsed.day, 10)));
+    } else {
+      setEditFormData(prev => ({ ...prev, admissionDate: text }));
+    }
+  };
+
+  const handleClearEditAdm = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setEditAdmDateDisplay('');
+    setEditFormData(prev => ({ ...prev, admissionDate: '' }));
+    setShowEditAdmCalPopover(false);
+  };
+
+  const handleSelectEditAdmToday = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const now = new Date();
+    handleSelectEditAdmDay(now.getFullYear(), now.getMonth(), now.getDate());
+  };
+
+  // Date of Birth Calendar Handlers
+  const toggleEditDobCalendar = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!showEditDobCalPopover) {
+      if (editFormData.dobYear && editFormData.dobMonth && editFormData.dobDay) {
+        let mIdx = monthsList.indexOf(editFormData.dobMonth);
+        if (mIdx === -1 && !isNaN(editFormData.dobMonth)) mIdx = parseInt(editFormData.dobMonth, 10) - 1;
+        const validM = mIdx >= 0 ? mIdx : 0;
+        setEditDobCalViewDate(new Date(parseInt(editFormData.dobYear, 10), validM, parseInt(editFormData.dobDay, 10) || 1));
+      } else if (editFormData.dateOfBirth && /^\d{4}-\d{2}-\d{2}$/.test(editFormData.dateOfBirth)) {
+        const [y, m, d] = editFormData.dateOfBirth.split('-').map(Number);
+        setEditDobCalViewDate(new Date(y, m - 1, d || 1));
+      } else {
+        const parsed = parseDateString(editDobDisplay);
+        if (parsed) {
+          setEditDobCalViewDate(new Date(parseInt(parsed.year, 10), parsed.monthIndex, parseInt(parsed.day, 10)));
+        } else {
+          setEditDobCalViewDate(new Date(2005, 0, 1));
+        }
+      }
+      setEditDobCalViewMode('days');
+      setShowEditDobCalPopover(true);
+      setShowEditAdmCalPopover(false);
+    } else {
+      setShowEditDobCalPopover(false);
+      setEditDobCalViewMode('days');
+    }
+  };
+
+  const handleSelectEditDobDay = (targetYear, targetMonthIndex, targetDay) => {
+    const y = targetYear;
+    const m = targetMonthIndex + 1;
+    const d = targetDay;
+    const isoVal = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const displayStr = `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`;
+
+    setEditDobDisplay(displayStr);
+    setEditFormData(prev => ({
+      ...prev,
+      dobDay: String(d).padStart(2, '0'),
+      dobMonth: monthsList[targetMonthIndex],
+      dobYear: String(y),
+      dateOfBirth: isoVal
+    }));
+    setShowEditDobCalPopover(false);
+    setEditDobCalViewMode('days');
+  };
+
+  const handleManualEditDobChange = (e) => {
+    const text = e.target.value;
+    setEditDobDisplay(text);
+    const parsed = parseDateString(text);
+    if (parsed) {
+      setEditFormData(prev => ({
+        ...prev,
+        dobDay: parsed.day,
+        dobMonth: parsed.month,
+        dobYear: parsed.year,
+        dateOfBirth: parsed.iso
+      }));
+      setEditDobCalViewDate(new Date(parseInt(parsed.year, 10), parsed.monthIndex, parseInt(parsed.day, 10)));
+    } else {
+      setEditFormData(prev => ({
+        ...prev,
+        dobDay: '',
+        dobMonth: '',
+        dobYear: '',
+        dateOfBirth: text
+      }));
+    }
+  };
+
+  const handleClearEditDob = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setEditDobDisplay('');
+    setEditFormData(prev => ({
+      ...prev,
+      dobDay: '',
+      dobMonth: '',
+      dobYear: '',
+      dateOfBirth: ''
+    }));
+    setShowEditDobCalPopover(false);
+  };
+
+  const handleSelectEditDobToday = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const now = new Date();
+    handleSelectEditDobDay(now.getFullYear(), now.getMonth(), now.getDate());
+  };
+
+  // Admission Date Popover Calculations
+  const editAdmCalViewYear = editAdmCalViewDate.getFullYear();
+  const editAdmCalViewMonth = editAdmCalViewDate.getMonth();
+  const editAdmFirstDayOfWeek = new Date(editAdmCalViewYear, editAdmCalViewMonth, 1).getDay();
+  const editAdmTotalDaysInMonth = new Date(editAdmCalViewYear, editAdmCalViewMonth + 1, 0).getDate();
+  const editAdmTotalDaysInPrevMonth = new Date(editAdmCalViewYear, editAdmCalViewMonth, 0).getDate();
+
+  const editAdmPrevMonthDays = Array.from({ length: editAdmFirstDayOfWeek }, (_, i) => {
+    return editAdmTotalDaysInPrevMonth - editAdmFirstDayOfWeek + 1 + i;
+  });
+  const editAdmCurrentMonthDays = Array.from({ length: editAdmTotalDaysInMonth }, (_, i) => i + 1);
+  const editAdmTotalCells = editAdmFirstDayOfWeek + editAdmTotalDaysInMonth;
+  const editAdmTargetSlots = editAdmTotalCells > 35 ? 42 : 35;
+  const editAdmNextMonthDays = Array.from({ length: editAdmTargetSlots - editAdmTotalCells }, (_, i) => i + 1);
+
+  let editAdmSelYear = null, editAdmSelMonth = null, editAdmSelDay = null;
+  if (editFormData.admissionDate && /^\d{4}-\d{2}-\d{2}$/.test(editFormData.admissionDate)) {
+    const parts = editFormData.admissionDate.split('-').map(Number);
+    editAdmSelYear = parts[0];
+    editAdmSelMonth = parts[1] - 1;
+    editAdmSelDay = parts[2];
+  } else {
+    const parsed = parseDateString(editAdmDateDisplay);
+    if (parsed) {
+      editAdmSelYear = parseInt(parsed.year, 10);
+      editAdmSelMonth = parsed.monthIndex;
+      editAdmSelDay = parseInt(parsed.day, 10);
+    }
+  }
+
+  const editAdmYearsList = Array.from({ length: (new Date().getFullYear() + 2) - 2020 + 1 }, (_, i) => 2020 + i).reverse();
+
+  // Date of Birth Popover Calculations
+  const editDobCalViewYear = editDobCalViewDate.getFullYear();
+  const editDobCalViewMonth = editDobCalViewDate.getMonth();
+  const editDobFirstDayOfWeek = new Date(editDobCalViewYear, editDobCalViewMonth, 1).getDay();
+  const editDobTotalDaysInMonth = new Date(editDobCalViewYear, editDobCalViewMonth + 1, 0).getDate();
+  const editDobTotalDaysInPrevMonth = new Date(editDobCalViewYear, editDobCalViewMonth, 0).getDate();
+
+  const editDobPrevMonthDays = Array.from({ length: editDobFirstDayOfWeek }, (_, i) => {
+    return editDobTotalDaysInPrevMonth - editDobFirstDayOfWeek + 1 + i;
+  });
+  const editDobCurrentMonthDays = Array.from({ length: editDobTotalDaysInMonth }, (_, i) => i + 1);
+  const editDobTotalCells = editDobFirstDayOfWeek + editDobTotalDaysInMonth;
+  const editDobTargetSlots = editDobTotalCells > 35 ? 42 : 35;
+  const editDobNextMonthDays = Array.from({ length: editDobTargetSlots - editDobTotalCells }, (_, i) => i + 1);
+
+  let editDobSelYear = null, editDobSelMonth = null, editDobSelDay = null;
+  if (editFormData.dobYear && editFormData.dobMonth && editFormData.dobDay) {
+    editDobSelYear = parseInt(editFormData.dobYear, 10);
+    let mIdx = monthsList.indexOf(editFormData.dobMonth);
+    if (mIdx === -1 && !isNaN(editFormData.dobMonth)) mIdx = parseInt(editFormData.dobMonth, 10) - 1;
+    editDobSelMonth = mIdx >= 0 ? mIdx : null;
+    editDobSelDay = parseInt(editFormData.dobDay, 10);
+  } else if (editFormData.dateOfBirth && /^\d{4}-\d{2}-\d{2}$/.test(editFormData.dateOfBirth)) {
+    const parts = editFormData.dateOfBirth.split('-').map(Number);
+    editDobSelYear = parts[0];
+    editDobSelMonth = parts[1] - 1;
+    editDobSelDay = parts[2];
+  } else {
+    const parsed = parseDateString(editDobDisplay);
+    if (parsed) {
+      editDobSelYear = parseInt(parsed.year, 10);
+      editDobSelMonth = parsed.monthIndex;
+      editDobSelDay = parseInt(parsed.day, 10);
+    }
+  }
+
+  const editDobYearsList = Array.from({ length: new Date().getFullYear() - 1970 + 1 }, (_, i) => 1970 + i).reverse();
+
+  const calTodayYear = new Date().getFullYear();
+  const calTodayMonth = new Date().getMonth();
+  const calTodayDay = new Date().getDate();
+  const todayDateObj = new Date();
+
   const handleOpenEditModal = (student) => {
     if (!student) return;
     setEditingStudent(student);
@@ -226,16 +618,44 @@ export default function BranchwiseStudents({ isDarkMode = false, showToast = () 
 
     const rawAdmissionDate = student.admissionDate || student.createdDate || '';
     let formattedAdmissionDate = '';
+    let admDisplay = '';
     if (rawAdmissionDate) {
       const dmyMatch = String(rawAdmissionDate).match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
       if (dmyMatch) {
         formattedAdmissionDate = `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`;
+        admDisplay = `${dmyMatch[1].padStart(2, '0')}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[3]}`;
       } else {
-        formattedAdmissionDate = String(rawAdmissionDate).split('T')[0];
+        const isoParts = String(rawAdmissionDate).split('T')[0].split('-');
+        if (isoParts.length === 3) {
+          formattedAdmissionDate = `${isoParts[0]}-${isoParts[1]}-${isoParts[2]}`;
+          admDisplay = `${isoParts[2].padStart(2, '0')}-${isoParts[1].padStart(2, '0')}-${isoParts[0]}`;
+        } else {
+          formattedAdmissionDate = String(rawAdmissionDate).split('T')[0];
+          admDisplay = formattedAdmissionDate;
+        }
       }
     } else {
-      formattedAdmissionDate = new Date().toISOString().split('T')[0];
+      const todayIso = new Date().toISOString().split('T')[0];
+      formattedAdmissionDate = todayIso;
+      const [ty, tm, td] = todayIso.split('-');
+      admDisplay = `${td}-${tm}-${ty}`;
     }
+
+    let dobDisplay = '';
+    if (dDay && dMonth && dYear) {
+      let mIdx = monthsList.indexOf(dMonth);
+      if (mIdx === -1 && !isNaN(dMonth)) mIdx = parseInt(dMonth, 10) - 1;
+      const mm = mIdx >= 0 ? String(mIdx + 1).padStart(2, '0') : String(dMonth).padStart(2, '0');
+      dobDisplay = `${String(parseInt(dDay, 10)).padStart(2, '0')}-${mm}-${dYear}`;
+    } else if (student.dateOfBirth) {
+      const parsed = parseDateString(student.dateOfBirth);
+      if (parsed) dobDisplay = parsed.display;
+    }
+
+    setEditAdmDateDisplay(admDisplay);
+    setEditDobDisplay(dobDisplay);
+    setShowEditAdmCalPopover(false);
+    setShowEditDobCalPopover(false);
 
     setEditFormData({
       registrationNo: student.registrationNo || student.admNo || '',
@@ -2391,19 +2811,315 @@ export default function BranchwiseStudents({ isDarkMode = false, showToast = () 
               {/* TOP CARD: Admission Date (Editable), Class (Editable), Training Plan (Non-Editable) */}
               <div className={`grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-800/60 border-slate-700' : 'bg-slate-50 border-slate-200/90'
                 }`}>
-                {/* Admission Date (Editable) */}
-                <div className="space-y-1">
+                {/* Admission Date (Editable with Interactive Calendar UI) */}
+                <div className="space-y-1 relative">
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                     ADMISSION DATE:
                   </label>
-                  <input
-                    type="date"
-                    name="admissionDate"
-                    value={editFormData.admissionDate}
-                    onChange={e => setEditFormData(prev => ({ ...prev, admissionDate: e.target.value }))}
-                    className={`w-full px-3 py-2 rounded-xl text-xs font-bold border focus:outline-none transition ${isDarkMode ? 'bg-slate-900 border-slate-700 text-white focus:border-rose-500' : 'bg-white border-slate-300 text-slate-900 focus:border-rose-500'
-                      }`}
-                  />
+                  <div className="relative flex items-center">
+                    <input
+                      type="text"
+                      name="admissionDate"
+                      placeholder="DD-MM-YYYY"
+                      value={editAdmDateDisplay}
+                      onChange={handleManualEditAdmChange}
+                      className={`w-full pl-3 pr-10 py-2 rounded-xl text-xs font-bold border focus:outline-none transition ${isDarkMode
+                        ? 'bg-slate-900 border-slate-700 text-white focus:border-rose-500'
+                        : 'bg-white border-slate-300 text-slate-900 focus:border-rose-500'
+                        }`}
+                    />
+                    <div className="absolute right-1.5 flex items-center justify-center">
+                      <button
+                        type="button"
+                        onClick={toggleEditAdmCalendar}
+                        className={`p-1.5 rounded-lg transition-all cursor-pointer ${showEditAdmCalPopover
+                          ? 'text-rose-600 bg-rose-50 ring-2 ring-rose-500/30'
+                          : (isDarkMode ? 'text-slate-400 hover:text-rose-400 hover:bg-slate-800' : 'text-slate-500 hover:text-rose-600 hover:bg-slate-100')
+                          }`}
+                        title="Open interactive calendar"
+                        aria-label="Open interactive calendar"
+                      >
+                        <Calendar className="w-4 h-4 pointer-events-none" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Custom Advanced Interactive Calendar Dropdown Popover */}
+                  {showEditAdmCalPopover && (
+                    <div
+                      ref={editAdmCalPopoverRef}
+                      className={`absolute left-0 top-full mt-2 z-50 w-[300px] sm:w-[325px] rounded-2xl p-4 transition-all duration-200 select-none animate-in fade-in zoom-in-95 border ${isDarkMode
+                        ? 'bg-slate-900 border-slate-700 text-white shadow-2xl shadow-black/70'
+                        : 'bg-white border-rose-100 text-slate-900 shadow-[0_20px_50px_rgba(0,0,0,0.2),0_0_0_1px_rgba(244,63,94,0.12)]'
+                        }`}
+                    >
+                      {/* Popover Header */}
+                      <div className={`flex items-center justify-between pb-3 mb-3 border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
+                        {editAdmCalViewMode === 'days' ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setEditAdmCalViewDate(new Date(editAdmCalViewYear, editAdmCalViewMonth - 1, 1));
+                              }}
+                              className={`w-7 h-7 flex items-center justify-center rounded-lg transition active:scale-90 cursor-pointer ${isDarkMode ? 'text-slate-300 hover:text-rose-400 hover:bg-slate-800' : 'text-slate-600 hover:text-rose-600 hover:bg-rose-50'
+                                }`}
+                              title="Previous Month"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                            </button>
+
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setEditAdmCalViewMode('months');
+                                }}
+                                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition flex items-center gap-1 cursor-pointer border ${isDarkMode
+                                  ? 'text-slate-200 bg-slate-800 hover:bg-slate-700 border-slate-700'
+                                  : 'text-slate-800 bg-slate-100/90 hover:bg-rose-50 hover:text-rose-600 border-slate-200/60'
+                                  }`}
+                                title="Click to choose Month"
+                              >
+                                <span>{monthsList[editAdmCalViewMonth]}</span>
+                                <ChevronDown className="w-3 h-3 text-slate-400" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setEditAdmCalViewMode('years');
+                                }}
+                                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition flex items-center gap-1 cursor-pointer border ${isDarkMode
+                                  ? 'text-slate-200 bg-slate-800 hover:bg-slate-700 border-slate-700'
+                                  : 'text-slate-800 bg-slate-100/90 hover:bg-rose-50 hover:text-rose-600 border-slate-200/60'
+                                  }`}
+                                title="Click to choose Year"
+                              >
+                                <span>{editAdmCalViewYear}</span>
+                                <ChevronDown className="w-3 h-3 text-slate-400" />
+                              </button>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setEditAdmCalViewDate(new Date(editAdmCalViewYear, editAdmCalViewMonth + 1, 1));
+                              }}
+                              className={`w-7 h-7 flex items-center justify-center rounded-lg transition active:scale-90 cursor-pointer ${isDarkMode ? 'text-slate-300 hover:text-rose-400 hover:bg-slate-800' : 'text-slate-600 hover:text-rose-600 hover:bg-rose-50'
+                                }`}
+                              title="Next Month"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : editAdmCalViewMode === 'months' ? (
+                          <>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Choose Month</span>
+                              <span className="text-xs font-semibold text-rose-500">({editAdmCalViewYear})</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setEditAdmCalViewMode('days')}
+                              className="text-xs font-bold text-rose-500 hover:text-rose-600 px-2 py-1 rounded-lg transition cursor-pointer"
+                            >
+                              Back
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Choose Year</span>
+                              <span className="text-xs font-semibold text-rose-500">({monthsList[editAdmCalViewMonth]})</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setEditAdmCalViewMode('days')}
+                              className="text-xs font-bold text-rose-500 hover:text-rose-600 px-2 py-1 rounded-lg transition cursor-pointer"
+                            >
+                              Back
+                            </button>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Days View */}
+                      {editAdmCalViewMode === 'days' && (
+                        <div>
+                          <div className="grid grid-cols-7 gap-1 mb-1.5 text-center">
+                            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((dName, i) => (
+                              <div
+                                key={dName}
+                                className={`text-[11px] font-bold tracking-wider py-1 ${i === 0 ? 'text-rose-500' : isDarkMode ? 'text-slate-500' : 'text-slate-400'
+                                  }`}
+                              >
+                                {dName}
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="grid grid-cols-7 gap-1 text-center">
+                            {editAdmPrevMonthDays.map((d) => (
+                              <button
+                                key={`prev-${d}`}
+                                type="button"
+                                onClick={() =>
+                                  handleSelectEditAdmDay(
+                                    editAdmCalViewMonth === 0 ? editAdmCalViewYear - 1 : editAdmCalViewYear,
+                                    editAdmCalViewMonth === 0 ? 11 : editAdmCalViewMonth - 1,
+                                    d
+                                  )
+                                }
+                                className={`h-8 w-8 mx-auto flex items-center justify-center text-xs font-medium rounded-xl transition cursor-pointer ${isDarkMode ? 'text-slate-600 hover:text-slate-300 hover:bg-slate-800' : 'text-slate-300 hover:text-slate-600 hover:bg-slate-100/70'
+                                  }`}
+                              >
+                                {d}
+                              </button>
+                            ))}
+
+                            {editAdmCurrentMonthDays.map((d) => {
+                              const isSelected = editAdmSelYear === editAdmCalViewYear && editAdmSelMonth === editAdmCalViewMonth && editAdmSelDay === d;
+                              const isToday = calTodayYear === editAdmCalViewYear && calTodayMonth === editAdmCalViewMonth && calTodayDay === d;
+
+                              return (
+                                <button
+                                  key={`curr-${d}`}
+                                  type="button"
+                                  onClick={() => handleSelectEditAdmDay(editAdmCalViewYear, editAdmCalViewMonth, d)}
+                                  className={`h-8 w-8 mx-auto flex items-center justify-center text-xs font-semibold rounded-xl transition-all cursor-pointer active:scale-95 ${isSelected
+                                    ? 'bg-gradient-to-r from-red-600 via-rose-600 to-rose-700 text-white font-black shadow-md shadow-rose-500/35 ring-2 ring-rose-200 scale-105'
+                                    : isToday
+                                      ? 'border-2 border-rose-500 text-rose-500 font-bold bg-rose-500/10 hover:bg-rose-500/20'
+                                      : isDarkMode
+                                        ? 'text-slate-200 hover:bg-slate-800 hover:text-rose-400'
+                                        : 'text-slate-700 hover:bg-rose-50 hover:text-rose-600'
+                                    }`}
+                                >
+                                  {d}
+                                </button>
+                              );
+                            })}
+
+                            {editAdmNextMonthDays.map((d) => (
+                              <button
+                                key={`next-${d}`}
+                                type="button"
+                                onClick={() =>
+                                  handleSelectEditAdmDay(
+                                    editAdmCalViewMonth === 11 ? editAdmCalViewYear + 1 : editAdmCalViewYear,
+                                    editAdmCalViewMonth === 11 ? 0 : editAdmCalViewMonth + 1,
+                                    d
+                                  )
+                                }
+                                className={`h-8 w-8 mx-auto flex items-center justify-center text-xs font-medium rounded-xl transition cursor-pointer ${isDarkMode ? 'text-slate-600 hover:text-slate-300 hover:bg-slate-800' : 'text-slate-300 hover:text-slate-600 hover:bg-slate-100/70'
+                                  }`}
+                              >
+                                {d}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Months View */}
+                      {editAdmCalViewMode === 'months' && (
+                        <div className="grid grid-cols-3 gap-2 py-1">
+                          {monthsList.map((m, idx) => {
+                            const isSelected = editAdmCalViewMonth === idx;
+                            return (
+                              <button
+                                key={m}
+                                type="button"
+                                onClick={() => {
+                                  setEditAdmCalViewDate(new Date(editAdmCalViewYear, idx, 1));
+                                  setEditAdmCalViewMode('days');
+                                }}
+                                className={`py-2 px-1 text-xs font-bold rounded-xl transition-all cursor-pointer active:scale-95 ${isSelected
+                                  ? 'bg-gradient-to-r from-red-600 to-rose-700 text-white shadow-md shadow-rose-500/30 ring-2 ring-rose-200'
+                                  : isDarkMode
+                                    ? 'text-slate-300 hover:bg-slate-800 hover:text-rose-400 bg-slate-800/60 border border-slate-700'
+                                    : 'text-slate-700 hover:bg-rose-50 hover:text-rose-600 bg-slate-50 border border-slate-100'
+                                  }`}
+                              >
+                                {m.slice(0, 3)}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Years View */}
+                      {editAdmCalViewMode === 'years' && (
+                        <div
+                          ref={editAdmYearsContainerRef}
+                          className="grid grid-cols-4 gap-1.5 max-h-52 overflow-y-auto pr-1 py-1"
+                          style={{ scrollbarWidth: 'thin' }}
+                        >
+                          {editAdmYearsList.map((y) => {
+                            const isSelected = editAdmCalViewYear === y;
+                            return (
+                              <button
+                                key={y}
+                                type="button"
+                                data-selected={isSelected}
+                                onClick={() => {
+                                  setEditAdmCalViewDate(new Date(y, editAdmCalViewMonth, 1));
+                                  setEditAdmCalViewMode('days');
+                                }}
+                                className={`py-2 px-1 text-xs font-bold rounded-xl transition-all cursor-pointer active:scale-95 ${isSelected
+                                  ? 'bg-gradient-to-r from-red-600 to-rose-700 text-white font-black shadow-md shadow-rose-500/30 ring-2 ring-rose-200'
+                                  : isDarkMode
+                                    ? 'text-slate-300 hover:bg-slate-800 hover:text-rose-400 bg-slate-800/60 border border-slate-700'
+                                    : 'text-slate-700 hover:bg-rose-50 hover:text-rose-600 bg-slate-50 border border-slate-100'
+                                  }`}
+                              >
+                                {y}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Footer Action Bar */}
+                      <div className={`flex items-center justify-between pt-3 mt-3 border-t text-xs ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleClearEditAdm}
+                            className={`px-2.5 py-1 rounded-lg font-medium transition cursor-pointer ${isDarkMode ? 'text-slate-400 hover:text-rose-400 hover:bg-slate-800' : 'text-slate-500 hover:text-rose-600 hover:bg-rose-50'
+                              }`}
+                          >
+                            Clear
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSelectEditAdmToday}
+                            className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${isDarkMode ? 'text-rose-400 hover:text-rose-300 hover:bg-slate-800' : 'text-rose-600 hover:text-rose-700 hover:bg-rose-50'
+                              }`}
+                          >
+                            Today
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowEditAdmCalPopover(false)}
+                          className="px-3.5 py-1 bg-gradient-to-r from-red-600 to-rose-700 text-white rounded-lg font-semibold transition shadow-sm active:scale-95 cursor-pointer"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Class (Editable) */}
@@ -2467,7 +3183,7 @@ export default function BranchwiseStudents({ isDarkMode = false, showToast = () 
                         required
                         value={editFormData.fullName}
                         onChange={e => setEditFormData(prev => ({ ...prev, fullName: e.target.value }))}
-                        placeholder="Enter Student's Full Name (as per SSLC / School Certificate)"
+                        placeholder="Enter Student's Full Name"
                         className={`w-full pl-9 pr-3 py-2.5 rounded-xl text-xs font-semibold border focus:outline-none transition ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white focus:border-rose-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-rose-500 focus:bg-white'
                           }`}
                       />
@@ -2492,51 +3208,350 @@ export default function BranchwiseStudents({ isDarkMode = false, showToast = () 
                     </div>
                   </div>
 
-                  {/* Date of Birth (3 Select Dropdowns) */}
-                  <div className="md:col-span-2">
+                  {/* Date of Birth (Interactive Custom Calendar UI) */}
+                  <div className="md:col-span-2 relative">
                     <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-slate-700 dark:text-slate-300">
                       Date of Birth <span className="text-rose-500">*</span>
                     </label>
-                    <div className="grid grid-cols-3 gap-3">
-                      {/* Day */}
-                      <select
-                        value={editFormData.dobDay}
-                        onChange={e => setEditFormData(prev => ({ ...prev, dobDay: e.target.value }))}
-                        className={`w-full px-3 py-2.5 rounded-xl text-xs font-semibold border focus:outline-none transition ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white focus:border-rose-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-rose-500 focus:bg-white'
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        name="dob"
+                        placeholder="DD-MM-YYYY"
+                        value={editDobDisplay}
+                        onChange={handleManualEditDobChange}
+                        className={`w-full pl-3.5 pr-11 py-2.5 rounded-xl text-xs font-semibold border focus:outline-none transition ${isDarkMode
+                          ? 'bg-slate-800 border-slate-700 text-white focus:border-rose-500'
+                          : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-rose-500 focus:bg-white'
                           }`}
-                      >
-                        <option value="">Day</option>
-                        {daysList.map(d => (
-                          <option key={d} value={d}>{d}</option>
-                        ))}
-                      </select>
-
-                      {/* Month */}
-                      <select
-                        value={editFormData.dobMonth}
-                        onChange={e => setEditFormData(prev => ({ ...prev, dobMonth: e.target.value }))}
-                        className={`w-full px-3 py-2.5 rounded-xl text-xs font-semibold border focus:outline-none transition ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white focus:border-rose-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-rose-500 focus:bg-white'
-                          }`}
-                      >
-                        <option value="">Month</option>
-                        {monthsList.map(m => (
-                          <option key={m} value={m}>{m}</option>
-                        ))}
-                      </select>
-
-                      {/* Year */}
-                      <select
-                        value={editFormData.dobYear}
-                        onChange={e => setEditFormData(prev => ({ ...prev, dobYear: e.target.value }))}
-                        className={`w-full px-3 py-2.5 rounded-xl text-xs font-semibold border focus:outline-none transition ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white focus:border-rose-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-rose-500 focus:bg-white'
-                          }`}
-                      >
-                        <option value="">Year</option>
-                        {yearsList.map(y => (
-                          <option key={y} value={y}>{y}</option>
-                        ))}
-                      </select>
+                      />
+                      <div className="absolute right-2 flex items-center justify-center">
+                        <button
+                          type="button"
+                          onClick={toggleEditDobCalendar}
+                          className={`p-1.5 rounded-lg transition-all cursor-pointer ${showEditDobCalPopover
+                            ? 'text-rose-600 bg-rose-50 ring-2 ring-rose-500/30'
+                            : (isDarkMode ? 'text-slate-400 hover:text-rose-400 hover:bg-slate-700' : 'text-slate-500 hover:text-rose-600 hover:bg-slate-100')
+                            }`}
+                          title="Open interactive calendar"
+                          aria-label="Open interactive calendar"
+                        >
+                          <Calendar className="w-4 h-4 pointer-events-none" />
+                        </button>
+                      </div>
                     </div>
+
+                    {/* Custom Advanced Interactive Calendar Dropdown Popover */}
+                    {showEditDobCalPopover && (
+                      <div
+                        ref={editDobCalPopoverRef}
+                        className={`absolute left-0 top-full mt-2 z-50 w-[300px] sm:w-[325px] rounded-2xl p-4 transition-all duration-200 select-none animate-in fade-in zoom-in-95 border ${isDarkMode
+                          ? 'bg-slate-900 border-slate-700 text-white shadow-2xl shadow-black/70'
+                          : 'bg-white border-rose-100 text-slate-900 shadow-[0_20px_50px_rgba(0,0,0,0.2),0_0_0_1px_rgba(244,63,94,0.12)]'
+                          }`}
+                      >
+                        {/* Popover Header */}
+                        <div className={`flex items-center justify-between pb-3 mb-3 border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
+                          {editDobCalViewMode === 'days' ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setEditDobCalViewDate(new Date(editDobCalViewYear, editDobCalViewMonth - 1, 1));
+                                }}
+                                className={`w-7 h-7 flex items-center justify-center rounded-lg transition active:scale-90 cursor-pointer ${isDarkMode ? 'text-slate-300 hover:text-rose-400 hover:bg-slate-800' : 'text-slate-600 hover:text-rose-600 hover:bg-rose-50'
+                                  }`}
+                                title="Previous Month"
+                              >
+                                <ChevronLeft className="w-4 h-4" />
+                              </button>
+
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setEditDobCalViewMode('months');
+                                  }}
+                                  className={`px-2.5 py-1 text-xs font-bold rounded-lg transition flex items-center gap-1 cursor-pointer border ${isDarkMode
+                                    ? 'text-slate-200 bg-slate-800 hover:bg-slate-700 border-slate-700'
+                                    : 'text-slate-800 bg-slate-100/90 hover:bg-rose-50 hover:text-rose-600 border-slate-200/60'
+                                    }`}
+                                  title="Click to choose Month"
+                                >
+                                  <span>{monthsList[editDobCalViewMonth]}</span>
+                                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setEditDobCalViewMode('years');
+                                  }}
+                                  className={`px-2.5 py-1 text-xs font-bold rounded-lg transition flex items-center gap-1 cursor-pointer border ${isDarkMode
+                                    ? 'text-slate-200 bg-slate-800 hover:bg-slate-700 border-slate-700'
+                                    : 'text-slate-800 bg-slate-100/90 hover:bg-rose-50 hover:text-rose-600 border-slate-200/60'
+                                    }`}
+                                  title="Click to choose Year"
+                                >
+                                  <span>{editDobCalViewYear}</span>
+                                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                                </button>
+                              </div>
+
+                              <button
+                                type="button"
+                                disabled={editDobCalViewYear === calTodayYear && editDobCalViewMonth >= calTodayMonth}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setEditDobCalViewDate(new Date(editDobCalViewYear, editDobCalViewMonth + 1, 1));
+                                }}
+                                className={`w-7 h-7 flex items-center justify-center rounded-lg transition active:scale-90 ${editDobCalViewYear === calTodayYear && editDobCalViewMonth >= calTodayMonth
+                                  ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed'
+                                  : isDarkMode ? 'text-slate-300 hover:text-rose-400 hover:bg-slate-800 cursor-pointer' : 'text-slate-600 hover:text-rose-600 hover:bg-rose-50 cursor-pointer'
+                                  }`}
+                                title="Next Month"
+                              >
+                                <ChevronRight className="w-4 h-4" />
+                              </button>
+                            </>
+                          ) : editDobCalViewMode === 'months' ? (
+                            <>
+                              <div className="flex items-center gap-1.5">
+                                <span className={`text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Choose Month</span>
+                                <span className="text-xs font-semibold text-rose-500">({editDobCalViewYear})</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setEditDobCalViewMode('days')}
+                                className="text-xs font-bold text-rose-500 hover:text-rose-600 px-2 py-1 rounded-lg transition cursor-pointer"
+                              >
+                                Back
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-1.5">
+                                <span className={`text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Choose Year</span>
+                                <span className="text-xs font-semibold text-rose-500">({monthsList[editDobCalViewMonth]})</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setEditDobCalViewMode('days')}
+                                className="text-xs font-bold text-rose-500 hover:text-rose-600 px-2 py-1 rounded-lg transition cursor-pointer"
+                              >
+                                Back
+                              </button>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Days View */}
+                        {editDobCalViewMode === 'days' && (
+                          <div>
+                            <div className="grid grid-cols-7 gap-1 mb-1.5 text-center">
+                              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((dName, i) => (
+                                <div
+                                  key={dName}
+                                  className={`text-[11px] font-bold tracking-wider py-1 ${i === 0 ? 'text-rose-500' : isDarkMode ? 'text-slate-500' : 'text-slate-400'
+                                    }`}
+                                >
+                                  {dName}
+                                </div>
+                              ))}
+                            </div>
+
+                            <div className="grid grid-cols-7 gap-1 text-center">
+                              {editDobPrevMonthDays.map((d) => (
+                                <button
+                                  key={`prev-${d}`}
+                                  type="button"
+                                  onClick={() =>
+                                    handleSelectEditDobDay(
+                                      editDobCalViewMonth === 0 ? editDobCalViewYear - 1 : editDobCalViewYear,
+                                      editDobCalViewMonth === 0 ? 11 : editDobCalViewMonth - 1,
+                                      d
+                                    )
+                                  }
+                                  className={`h-8 w-8 mx-auto flex items-center justify-center text-xs font-medium rounded-xl transition cursor-pointer ${isDarkMode ? 'text-slate-600 hover:text-slate-300 hover:bg-slate-800' : 'text-slate-300 hover:text-slate-600 hover:bg-slate-100/70'
+                                    }`}
+                                >
+                                  {d}
+                                </button>
+                              ))}
+
+                              {editDobCurrentMonthDays.map((d) => {
+                                const isSelected = editDobSelYear === editDobCalViewYear && editDobSelMonth === editDobCalViewMonth && editDobSelDay === d;
+                                const isToday = calTodayYear === editDobCalViewYear && calTodayMonth === editDobCalViewMonth && calTodayDay === d;
+                                const isFuture = new Date(editDobCalViewYear, editDobCalViewMonth, d) > todayDateObj;
+
+                                if (isFuture) {
+                                  return (
+                                    <span
+                                      key={`curr-${d}`}
+                                      className="h-8 w-8 mx-auto flex items-center justify-center text-xs font-medium text-slate-300 dark:text-slate-600 cursor-not-allowed select-none"
+                                    >
+                                      {d}
+                                    </span>
+                                  );
+                                }
+
+                                return (
+                                  <button
+                                    key={`curr-${d}`}
+                                    type="button"
+                                    onClick={() => handleSelectEditDobDay(editDobCalViewYear, editDobCalViewMonth, d)}
+                                    className={`h-8 w-8 mx-auto flex items-center justify-center text-xs font-semibold rounded-xl transition-all cursor-pointer active:scale-95 ${isSelected
+                                      ? 'bg-gradient-to-r from-red-600 via-rose-600 to-rose-700 text-white font-black shadow-md shadow-rose-500/35 ring-2 ring-rose-200 scale-105'
+                                      : isToday
+                                        ? 'border-2 border-rose-500 text-rose-500 font-bold bg-rose-500/10 hover:bg-rose-500/20'
+                                        : isDarkMode
+                                          ? 'text-slate-200 hover:bg-slate-800 hover:text-rose-400'
+                                          : 'text-slate-700 hover:bg-rose-50 hover:text-rose-600'
+                                      }`}
+                                  >
+                                    {d}
+                                  </button>
+                                );
+                              })}
+
+                              {editDobNextMonthDays.map((d) => {
+                                const isFuture =
+                                  new Date(
+                                    editDobCalViewMonth === 11 ? editDobCalViewYear + 1 : editDobCalViewYear,
+                                    editDobCalViewMonth === 11 ? 0 : editDobCalViewMonth + 1,
+                                    d
+                                  ) > todayDateObj;
+
+                                if (isFuture) {
+                                  return (
+                                    <span
+                                      key={`next-${d}`}
+                                      className="h-8 w-8 mx-auto flex items-center justify-center text-xs font-medium text-slate-300 dark:text-slate-600 cursor-not-allowed select-none"
+                                    >
+                                      {d}
+                                    </span>
+                                  );
+                                }
+
+                                return (
+                                  <button
+                                    key={`next-${d}`}
+                                    type="button"
+                                    onClick={() =>
+                                      handleSelectEditDobDay(
+                                        editDobCalViewMonth === 11 ? editDobCalViewYear + 1 : editDobCalViewYear,
+                                        editDobCalViewMonth === 11 ? 0 : editDobCalViewMonth + 1,
+                                        d
+                                      )
+                                    }
+                                    className={`h-8 w-8 mx-auto flex items-center justify-center text-xs font-medium rounded-xl transition cursor-pointer ${isDarkMode ? 'text-slate-600 hover:text-slate-300 hover:bg-slate-800' : 'text-slate-300 hover:text-slate-600 hover:bg-slate-100/70'
+                                      }`}
+                                  >
+                                    {d}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Months View */}
+                        {editDobCalViewMode === 'months' && (
+                          <div className="grid grid-cols-3 gap-2 py-1">
+                            {monthsList.map((m, idx) => {
+                              const isSelected = editDobCalViewMonth === idx;
+                              return (
+                                <button
+                                  key={m}
+                                  type="button"
+                                  onClick={() => {
+                                    setEditDobCalViewDate(new Date(editDobCalViewYear, idx, 1));
+                                    setEditDobCalViewMode('days');
+                                  }}
+                                  className={`py-2 px-1 text-xs font-bold rounded-xl transition-all cursor-pointer active:scale-95 ${isSelected
+                                    ? 'bg-gradient-to-r from-red-600 to-rose-700 text-white shadow-md shadow-rose-500/30 ring-2 ring-rose-200'
+                                    : isDarkMode
+                                      ? 'text-slate-300 hover:bg-slate-800 hover:text-rose-400 bg-slate-800/60 border border-slate-700'
+                                      : 'text-slate-700 hover:bg-rose-50 hover:text-rose-600 bg-slate-50 border border-slate-100'
+                                    }`}
+                                >
+                                  {m.slice(0, 3)}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Years View */}
+                        {editDobCalViewMode === 'years' && (
+                          <div
+                            ref={editDobYearsContainerRef}
+                            className="grid grid-cols-4 gap-1.5 max-h-52 overflow-y-auto pr-1 py-1"
+                            style={{ scrollbarWidth: 'thin' }}
+                          >
+                            {editDobYearsList.map((y) => {
+                              const isSelected = editDobCalViewYear === y;
+                              return (
+                                <button
+                                  key={y}
+                                  type="button"
+                                  data-selected={isSelected}
+                                  onClick={() => {
+                                    setEditDobCalViewDate(new Date(y, editDobCalViewMonth, 1));
+                                    setEditDobCalViewMode('days');
+                                  }}
+                                  className={`py-2 px-1 text-xs font-bold rounded-xl transition-all cursor-pointer active:scale-95 ${isSelected
+                                    ? 'bg-gradient-to-r from-red-600 to-rose-700 text-white font-black shadow-md shadow-rose-500/30 ring-2 ring-rose-200'
+                                    : isDarkMode
+                                      ? 'text-slate-300 hover:bg-slate-800 hover:text-rose-400 bg-slate-800/60 border border-slate-700'
+                                      : 'text-slate-700 hover:bg-rose-50 hover:text-rose-600 bg-slate-50 border border-slate-100'
+                                    }`}
+                                >
+                                  {y}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Footer Action Bar */}
+                        <div className={`flex items-center justify-between pt-3 mt-3 border-t text-xs ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleClearEditDob}
+                              className={`px-2.5 py-1 rounded-lg font-medium transition cursor-pointer ${isDarkMode ? 'text-slate-400 hover:text-rose-400 hover:bg-slate-800' : 'text-slate-500 hover:text-rose-600 hover:bg-rose-50'
+                                }`}
+                            >
+                              Clear
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleSelectEditDobToday}
+                              className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${isDarkMode ? 'text-rose-400 hover:text-rose-300 hover:bg-slate-800' : 'text-rose-600 hover:text-rose-700 hover:bg-rose-50'
+                                }`}
+                            >
+                              Today
+                            </button>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setShowEditDobCalPopover(false)}
+                            className="px-3.5 py-1 bg-gradient-to-r from-red-600 to-rose-700 text-white rounded-lg font-semibold transition shadow-sm active:scale-95 cursor-pointer"
+                          >
+                            Done
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Caste / Category */}

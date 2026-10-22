@@ -26,7 +26,10 @@ import {
   RefreshCw,
   FileText,
   Crop,
-  Eye
+  Eye,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown
 } from 'lucide-react';
 import { db, doc, setDoc, deleteDoc, collection, getDocs, getDoc } from '../firebase';
 import { uploadToCloudinary, compressImage } from '../utils/cloudinary';
@@ -43,6 +46,7 @@ export default function ApplicationForm() {
   const [formData, setFormData] = useState({
     fullName: '',
     fatherName: '',
+    dob: '',
     dobDay: '',
     dobMonth: '',
     dobYear: '',
@@ -279,6 +283,330 @@ export default function ApplicationForm() {
       setFormErrors(prev => ({ ...prev, [name]: null }));
     }
   };
+
+  // Dedicated state for Date of Birth input display text (allows manual typing & editing)
+  const [dobInputDisplay, setDobInputDisplay] = useState('');
+
+  // Helper to parse manual date string (DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD, DDMMYYYY, DD Month YYYY)
+  const parseDobString = (text) => {
+    if (!text) return null;
+    const clean = text.trim();
+
+    // 1. DD-MM-YYYY or DD/MM/YYYY or DD.MM.YYYY
+    let match = clean.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+    if (match) {
+      const d = parseInt(match[1], 10);
+      const m = parseInt(match[2], 10);
+      const y = match[3];
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return {
+          day: String(d),
+          month: months[m - 1],
+          year: y,
+          iso: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+        };
+      }
+    }
+
+    // 2. YYYY-MM-DD
+    match = clean.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+    if (match) {
+      const y = match[1];
+      const m = parseInt(match[2], 10);
+      const d = parseInt(match[3], 10);
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return {
+          day: String(d),
+          month: months[m - 1],
+          year: y,
+          iso: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+        };
+      }
+    }
+
+    // 3. 8 continuous digits: DDMMYYYY
+    match = clean.match(/^(\d{2})(\d{2})(\d{4})$/);
+    if (match) {
+      const d = parseInt(match[1], 10);
+      const m = parseInt(match[2], 10);
+      const y = match[3];
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return {
+          day: String(d),
+          month: months[m - 1],
+          year: y,
+          iso: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+        };
+      }
+    }
+
+    // 4. DD Month YYYY (e.g. "15 August 2005" or "15-Aug-2005")
+    match = clean.match(/^(\d{1,2})[\s\-_]+([A-Za-z]+)[\s\-_]+(\d{4})$/);
+    if (match) {
+      const d = parseInt(match[1], 10);
+      const mStr = match[2].toLowerCase();
+      const y = match[3];
+      const mIdx = months.findIndex(m => m.toLowerCase().startsWith(mStr.slice(0, 3)));
+      if (mIdx >= 0 && d >= 1 && d <= 31) {
+        return {
+          day: String(d),
+          month: months[mIdx],
+          year: y,
+          iso: `${y}-${String(mIdx + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+        };
+      }
+    }
+
+    return null;
+  };
+
+  // Helper to format ISO value for native date calendar picker
+  const getDobIsoValue = () => {
+    if (formData.dob && /^\d{4}-\d{2}-\d{2}$/.test(formData.dob)) {
+      return formData.dob;
+    }
+    if (formData.dobYear && formData.dobMonth && formData.dobDay) {
+      let mIdx = months.indexOf(formData.dobMonth);
+      if (mIdx === -1 && !isNaN(formData.dobMonth)) mIdx = parseInt(formData.dobMonth, 10) - 1;
+      if (mIdx >= 0 && mIdx < 12) {
+        const mm = String(mIdx + 1).padStart(2, '0');
+        const dd = String(parseInt(formData.dobDay, 10)).padStart(2, '0');
+        return `${formData.dobYear}-${mm}-${dd}`;
+      }
+    }
+    const parsed = parseDobString(dobInputDisplay);
+    if (parsed) return parsed.iso;
+    return '';
+  };
+
+  // Custom Interactive Calendar State
+  const [showCalendarPopover, setShowCalendarPopover] = useState(false);
+  const [calendarViewMode, setCalendarViewMode] = useState('days'); // 'days' | 'months' | 'years'
+  const [calendarViewDate, setCalendarViewDate] = useState(() => {
+    const defYear = Math.max(1980, currentYear - 16);
+    return new Date(defYear, 0, 1);
+  });
+  const calendarPopoverRef = useRef(null);
+  const yearsContainerRef = useRef(null);
+
+  // Sync display text if formData.dob changes externally or from draft
+  useEffect(() => {
+    if (!dobInputDisplay && formData.dob) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(formData.dob)) {
+        const [y, m, d] = formData.dob.split('-');
+        setDobInputDisplay(`${d}-${m}-${y}`);
+      } else if (formData.dobDay && formData.dobMonth && formData.dobYear) {
+        let mIdx = months.indexOf(formData.dobMonth);
+        if (mIdx === -1 && !isNaN(formData.dobMonth)) mIdx = parseInt(formData.dobMonth, 10) - 1;
+        const mm = mIdx >= 0 ? String(mIdx + 1).padStart(2, '0') : '01';
+        setDobInputDisplay(`${String(parseInt(formData.dobDay, 10)).padStart(2, '0')}-${mm}-${formData.dobYear}`);
+      }
+    }
+  }, [formData.dob]);
+
+  // Outside click & Escape key listener for Custom Calendar Popover
+  useEffect(() => {
+    if (!showCalendarPopover) return;
+    const handleClickOutside = (e) => {
+      if (calendarPopoverRef.current && !calendarPopoverRef.current.contains(e.target)) {
+        setShowCalendarPopover(false);
+        setCalendarViewMode('days');
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowCalendarPopover(false);
+        setCalendarViewMode('days');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showCalendarPopover]);
+
+  // Auto-scroll to selected year when Year view mode is activated
+  useEffect(() => {
+    if (calendarViewMode === 'years' && yearsContainerRef.current) {
+      const activeBtn = yearsContainerRef.current.querySelector('[data-selected="true"]');
+      if (activeBtn) {
+        activeBtn.scrollIntoView({ block: 'center', behavior: 'auto' });
+      }
+    }
+  }, [calendarViewMode]);
+
+  // Toggle Custom Interactive Calendar Popover
+  const toggleCalendar = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!showCalendarPopover) {
+      const iso = getDobIsoValue();
+      if (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+        const [y, m, d] = iso.split('-').map(Number);
+        setCalendarViewDate(new Date(y, m - 1, d || 1));
+      } else {
+        const defYear = Math.max(1980, currentYear - 16);
+        setCalendarViewDate(new Date(defYear, 0, 1));
+      }
+      setCalendarViewMode('days');
+      setShowCalendarPopover(true);
+    } else {
+      setShowCalendarPopover(false);
+      setCalendarViewMode('days');
+    }
+  };
+
+  // Day selection in Custom Calendar
+  const handleSelectCalendarDay = (targetYear, targetMonthIndex, targetDay) => {
+    const y = targetYear;
+    const m = targetMonthIndex + 1;
+    const d = targetDay;
+    const isoVal = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const displayStr = `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`;
+
+    setDobInputDisplay(displayStr);
+    setFormData(prev => ({
+      ...prev,
+      dob: isoVal,
+      dateOfBirth: isoVal,
+      dobDay: String(d),
+      dobMonth: months[targetMonthIndex],
+      dobYear: String(y)
+    }));
+
+    if (formErrors.dob) {
+      setFormErrors(prev => ({ ...prev, dob: null }));
+    }
+    setShowCalendarPopover(false);
+    setCalendarViewMode('days');
+  };
+
+  // Clear DOB selection
+  const handleClearDob = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setDobInputDisplay('');
+    setFormData(prev => ({
+      ...prev,
+      dob: '',
+      dateOfBirth: '',
+      dobDay: '',
+      dobMonth: '',
+      dobYear: ''
+    }));
+    setShowCalendarPopover(false);
+  };
+
+  // Select Today
+  const handleSelectToday = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const now = new Date();
+    handleSelectCalendarDay(now.getFullYear(), now.getMonth(), now.getDate());
+  };
+
+  // Manual typing & editing handler
+  const handleManualDobChange = (e) => {
+    const text = e.target.value;
+    setDobInputDisplay(text);
+
+    const parsed = parseDobString(text);
+    if (parsed) {
+      setFormData(prev => ({
+        ...prev,
+        dob: parsed.iso,
+        dateOfBirth: parsed.iso,
+        dobDay: parsed.day,
+        dobMonth: parsed.month,
+        dobYear: parsed.year
+      }));
+      // Auto-sync calendar viewing date with manually entered date
+      const mIdx = months.indexOf(parsed.month);
+      if (mIdx >= 0) {
+        setCalendarViewDate(new Date(parseInt(parsed.year, 10), mIdx, parseInt(parsed.day, 10)));
+      }
+      if (formErrors.dob) {
+        setFormErrors(prev => ({ ...prev, dob: null }));
+      }
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        dob: text,
+        dobDay: '',
+        dobMonth: '',
+        dobYear: ''
+      }));
+    }
+  };
+
+  // Computed values for interactive calendar popover
+  const calendarViewYear = calendarViewDate.getFullYear();
+  const calendarViewMonth = calendarViewDate.getMonth(); // 0 to 11
+
+  // First day of current view month (0 = Sun, 1 = Mon, ... 6 = Sat)
+  const firstDayOfWeek = new Date(calendarViewYear, calendarViewMonth, 1).getDay();
+  // Total days in view month
+  const totalDaysInMonth = new Date(calendarViewYear, calendarViewMonth + 1, 0).getDate();
+  // Total days in previous month
+  const totalDaysInPrevMonth = new Date(calendarViewYear, calendarViewMonth, 0).getDate();
+
+  // Previous month trailing days to show
+  const prevMonthDays = Array.from({ length: firstDayOfWeek }, (_, i) => {
+    return totalDaysInPrevMonth - firstDayOfWeek + 1 + i;
+  });
+
+  // Current month days
+  const currentMonthDays = Array.from({ length: totalDaysInMonth }, (_, i) => i + 1);
+
+  // Next month leading days to complete grid (up to 35 or 42 cells)
+  const totalCellsSoFar = firstDayOfWeek + totalDaysInMonth;
+  const targetTotalGridSlots = totalCellsSoFar > 35 ? 42 : 35;
+  const nextMonthDaysCount = targetTotalGridSlots - totalCellsSoFar;
+  const nextMonthDays = Array.from({ length: nextMonthDaysCount }, (_, i) => i + 1);
+
+  // Currently selected date breakdown
+  const selectedDobIso = getDobIsoValue();
+  let selYearNum = null;
+  let selMonthNum = null;
+  let selDayNum = null;
+  if (selectedDobIso && /^\d{4}-\d{2}-\d{2}$/.test(selectedDobIso)) {
+    const parts = selectedDobIso.split('-').map(Number);
+    selYearNum = parts[0];
+    selMonthNum = parts[1] - 1; // 0-indexed month
+    selDayNum = parts[2];
+  }
+
+  const todayObj = new Date();
+  const todayYearNum = todayObj.getFullYear();
+  const todayMonthNum = todayObj.getMonth();
+  const todayDayNum = todayObj.getDate();
+
+  // Calculate age if selected date is valid
+  const getSelectedAge = () => {
+    if (selYearNum && selMonthNum !== null && selDayNum) {
+      let age = todayYearNum - selYearNum;
+      const mDiff = todayMonthNum - selMonthNum;
+      if (mDiff < 0 || (mDiff === 0 && todayDayNum < selDayNum)) {
+        age--;
+      }
+      return age >= 0 ? age : null;
+    }
+    return null;
+  };
+  const selectedAge = getSelectedAge();
+
+  // Full list of selectable years for Year view (from 1970 to current year)
+  const calendarYearsList = Array.from({ length: currentYear - 1970 + 1 }, (_, i) => 1970 + i).reverse();
 
   // Handle Photo Selection (From File Browser / Drag & Drop / Camera / Cropper Modal)
   const handlePhotoSelect = async (fileOrDataUrl) => {
@@ -1367,9 +1695,13 @@ export default function ApplicationForm() {
 
   const resetFormFields = () => {
     setCurrentDraftAppNumber('');
+    setDobInputDisplay('');
+    setShowCalendarPopover(false);
+    setCalendarViewMode('days');
     setFormData({
       fullName: '',
       fatherName: '',
+      dob: '',
       dobDay: '',
       dobMonth: '',
       dobYear: '',
@@ -1523,7 +1855,7 @@ export default function ApplicationForm() {
                     name="fullName"
                     value={formData.fullName}
                     onChange={handleChange}
-                    placeholder="Enter Student's Full Name (as per SSLC / School Certificate)"
+                    placeholder="Enter Student's Full Name"
                     className={`w-full pl-10 pr-4 py-2.5 rounded-xl border text-sm focus:outline-none transition-all ${formErrors.fullName
                         ? 'border-rose-500 bg-rose-50/50 focus:ring-2 focus:ring-rose-500/20'
                         : 'border-slate-300 bg-slate-50/50 focus:border-rose-600 focus:bg-white focus:ring-2 focus:ring-rose-500/20'
@@ -1555,52 +1887,345 @@ export default function ApplicationForm() {
                 {formErrors.fatherName && <p className="text-xs text-rose-600 flex items-center gap-1 mt-1"><AlertCircle className="w-3.5 h-3.5" />{formErrors.fatherName}</p>}
               </div>
 
-              {/* Date of Birth (3 Select Dropdowns) */}
+              {/* Date of Birth (Editable Manually and Selectable via Calendar) */}
               <div className="space-y-1.5 md:col-span-2">
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                   Date of Birth <span className="text-rose-500">*</span>
                 </label>
-                <div className="grid grid-cols-3 gap-3">
-                  {/* Day */}
-                  <select
-                    name="dobDay"
-                    value={formData.dobDay}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-sm focus:outline-none focus:border-rose-600 focus:bg-white focus:ring-2 focus:ring-rose-500/20"
-                  >
-                    <option value="">Day</option>
-                    {days.map(d => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    name="dob"
+                    placeholder="DD-MM-YYYY"
+                    value={dobInputDisplay}
+                    onChange={handleManualDobChange}
+                    className={`w-full pl-4 pr-11 py-2.5 rounded-xl border text-sm font-medium focus:outline-none transition-all ${
+                      formErrors.dob
+                        ? 'border-rose-500 bg-rose-50/50 focus:ring-2 focus:ring-rose-500/20'
+                        : 'border-slate-300 bg-slate-50/50 focus:border-rose-600 focus:bg-white focus:ring-2 focus:ring-rose-500/20'
+                    }`}
+                  />
+                  <div className="absolute right-2 flex items-center justify-center">
+                    <button
+                      type="button"
+                      onClick={toggleCalendar}
+                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                        showCalendarPopover
+                          ? 'text-rose-600 bg-rose-50 ring-2 ring-rose-500/30 shadow-inner'
+                          : 'text-slate-500 hover:text-rose-600 hover:bg-slate-100'
+                      }`}
+                      title="Open interactive calendar"
+                      aria-label="Open interactive calendar"
+                    >
+                      <Calendar className="w-5 h-5 pointer-events-none" />
+                    </button>
+                  </div>
 
-                  {/* Month */}
-                  <select
-                    name="dobMonth"
-                    value={formData.dobMonth}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-sm focus:outline-none focus:border-rose-600 focus:bg-white focus:ring-2 focus:ring-rose-500/20"
-                  >
-                    <option value="">Month</option>
-                    {months.map((m, idx) => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
+                  {/* Custom Advanced Interactive Calendar Dropdown Popover */}
+                  {showCalendarPopover && (
+                    <div
+                      ref={calendarPopoverRef}
+                      className="absolute right-0 top-full mt-2.5 z-50 w-[310px] sm:w-[335px] bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2),0_0_0_1px_rgba(244,63,94,0.12)] border border-rose-100 p-4 transition-all duration-200 select-none animate-in fade-in zoom-in-95"
+                    >
+                      {/* Popover Header */}
+                      <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+                        {calendarViewMode === 'days' ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setCalendarViewDate(new Date(calendarViewYear, calendarViewMonth - 1, 1));
+                              }}
+                              className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-600 hover:text-rose-600 hover:bg-rose-50 transition active:scale-90 cursor-pointer"
+                              title="Previous Month"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                            </button>
 
-                  {/* Year */}
-                  <select
-                    name="dobYear"
-                    value={formData.dobYear}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-sm focus:outline-none focus:border-rose-600 focus:bg-white focus:ring-2 focus:ring-rose-500/20"
-                  >
-                    <option value="">Year</option>
-                    {years.map(y => (
-                      <option key={y} value={y}>{y}</option>
-                    ))}
-                  </select>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setCalendarViewMode('months');
+                                }}
+                                className="px-2.5 py-1 text-xs font-bold text-slate-800 bg-slate-100/90 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition flex items-center gap-1 cursor-pointer border border-slate-200/60"
+                                title="Click to choose Month"
+                              >
+                                <span>{months[calendarViewMonth]}</span>
+                                <ChevronDown className="w-3 h-3 text-slate-400" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setCalendarViewMode('years');
+                                }}
+                                className="px-2.5 py-1 text-xs font-bold text-slate-800 bg-slate-100/90 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition flex items-center gap-1 cursor-pointer border border-slate-200/60"
+                                title="Click to choose Year"
+                              >
+                                <span>{calendarViewYear}</span>
+                                <ChevronDown className="w-3 h-3 text-slate-400" />
+                              </button>
+                            </div>
+
+                            <button
+                              type="button"
+                              disabled={calendarViewYear === todayYearNum && calendarViewMonth >= todayMonthNum}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setCalendarViewDate(new Date(calendarViewYear, calendarViewMonth + 1, 1));
+                              }}
+                              className={`w-8 h-8 flex items-center justify-center rounded-xl transition active:scale-90 ${
+                                calendarViewYear === todayYearNum && calendarViewMonth >= todayMonthNum
+                                  ? 'text-slate-300 cursor-not-allowed'
+                                  : 'text-slate-600 hover:text-rose-600 hover:bg-rose-50 cursor-pointer'
+                              }`}
+                              title="Next Month"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : calendarViewMode === 'months' ? (
+                          <>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Choose Month</span>
+                              <span className="text-xs font-semibold text-rose-600">({calendarViewYear})</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setCalendarViewMode('days')}
+                              className="text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded-lg transition cursor-pointer"
+                            >
+                              Back
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Choose Year</span>
+                              <span className="text-xs font-semibold text-rose-600">({months[calendarViewMonth]})</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setCalendarViewMode('days')}
+                              className="text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded-lg transition cursor-pointer"
+                            >
+                              Back
+                            </button>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Body: Days View */}
+                      {calendarViewMode === 'days' && (
+                        <div>
+                          {/* Days of week */}
+                          <div className="grid grid-cols-7 gap-1 mb-1.5 text-center">
+                            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((dName, i) => (
+                              <div
+                                key={dName}
+                                className={`text-[11px] font-bold tracking-wider py-1 ${
+                                  i === 0 ? 'text-rose-500' : 'text-slate-400'
+                                }`}
+                              >
+                                {dName}
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Days Grid */}
+                          <div className="grid grid-cols-7 gap-1 text-center">
+                            {prevMonthDays.map((d) => (
+                              <button
+                                key={`prev-${d}`}
+                                type="button"
+                                onClick={() =>
+                                  handleSelectCalendarDay(
+                                    calendarViewMonth === 0 ? calendarViewYear - 1 : calendarViewYear,
+                                    calendarViewMonth === 0 ? 11 : calendarViewMonth - 1,
+                                    d
+                                  )
+                                }
+                                className="h-8 w-8 mx-auto flex items-center justify-center text-xs font-medium text-slate-300 hover:text-slate-600 hover:bg-slate-100/70 rounded-xl transition cursor-pointer"
+                              >
+                                {d}
+                              </button>
+                            ))}
+
+                            {currentMonthDays.map((d) => {
+                              const isSelected = selYearNum === calendarViewYear && selMonthNum === calendarViewMonth && selDayNum === d;
+                              const isToday = todayYearNum === calendarViewYear && todayMonthNum === calendarViewMonth && todayDayNum === d;
+                              const isFuture = new Date(calendarViewYear, calendarViewMonth, d) > todayObj;
+
+                              if (isFuture) {
+                                return (
+                                  <span
+                                    key={`curr-${d}`}
+                                    className="h-8 w-8 mx-auto flex items-center justify-center text-xs font-medium text-slate-200 cursor-not-allowed select-none"
+                                  >
+                                    {d}
+                                  </span>
+                                );
+                              }
+
+                              return (
+                                <button
+                                  key={`curr-${d}`}
+                                  type="button"
+                                  onClick={() => handleSelectCalendarDay(calendarViewYear, calendarViewMonth, d)}
+                                  className={`h-8 w-8 mx-auto flex items-center justify-center text-xs font-semibold rounded-xl transition-all cursor-pointer active:scale-95 ${
+                                    isSelected
+                                      ? 'bg-gradient-to-r from-red-600 via-rose-600 to-rose-700 text-white font-black shadow-md shadow-rose-500/35 ring-2 ring-rose-200 scale-105'
+                                      : isToday
+                                      ? 'border-2 border-rose-500 text-rose-600 font-bold bg-rose-50/50 hover:bg-rose-100/70'
+                                      : 'text-slate-700 hover:bg-rose-50 hover:text-rose-600'
+                                  }`}
+                                >
+                                  {d}
+                                </button>
+                              );
+                            })}
+
+                            {nextMonthDays.map((d) => {
+                              const isFuture =
+                                new Date(
+                                  calendarViewMonth === 11 ? calendarViewYear + 1 : calendarViewYear,
+                                  calendarViewMonth === 11 ? 0 : calendarViewMonth + 1,
+                                  d
+                                ) > todayObj;
+
+                              if (isFuture) {
+                                return (
+                                  <span
+                                    key={`next-${d}`}
+                                    className="h-8 w-8 mx-auto flex items-center justify-center text-xs font-medium text-slate-200 cursor-not-allowed select-none"
+                                  >
+                                    {d}
+                                  </span>
+                                );
+                              }
+
+                              return (
+                                <button
+                                  key={`next-${d}`}
+                                  type="button"
+                                  onClick={() =>
+                                    handleSelectCalendarDay(
+                                      calendarViewMonth === 11 ? calendarViewYear + 1 : calendarViewYear,
+                                      calendarViewMonth === 11 ? 0 : calendarViewMonth + 1,
+                                      d
+                                    )
+                                  }
+                                  className="h-8 w-8 mx-auto flex items-center justify-center text-xs font-medium text-slate-300 hover:text-slate-600 hover:bg-slate-100/70 rounded-xl transition cursor-pointer"
+                                >
+                                  {d}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Body: Months View */}
+                      {calendarViewMode === 'months' && (
+                        <div className="grid grid-cols-3 gap-2 py-1">
+                          {months.map((m, idx) => {
+                            const isSelected = calendarViewMonth === idx;
+                            return (
+                              <button
+                                key={m}
+                                type="button"
+                                onClick={() => {
+                                  setCalendarViewDate(new Date(calendarViewYear, idx, 1));
+                                  setCalendarViewMode('days');
+                                }}
+                                className={`py-2.5 px-2 text-xs font-bold rounded-xl transition-all cursor-pointer active:scale-95 ${
+                                  isSelected
+                                    ? 'bg-gradient-to-r from-red-600 to-rose-700 text-white shadow-md shadow-rose-500/30 ring-2 ring-rose-200'
+                                    : 'text-slate-700 hover:bg-rose-50 hover:text-rose-600 bg-slate-50 border border-slate-100'
+                                }`}
+                              >
+                                {m.slice(0, 3)}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Body: Years View */}
+                      {calendarViewMode === 'years' && (
+                        <div
+                          ref={yearsContainerRef}
+                          className="grid grid-cols-4 gap-1.5 max-h-52 overflow-y-auto pr-1 py-1"
+                          style={{ scrollbarWidth: 'thin' }}
+                        >
+                          {calendarYearsList.map((y) => {
+                            const isSelected = calendarViewYear === y;
+                            return (
+                              <button
+                                key={y}
+                                type="button"
+                                data-selected={isSelected}
+                                onClick={() => {
+                                  setCalendarViewDate(new Date(y, calendarViewMonth, 1));
+                                  setCalendarViewMode('days');
+                                }}
+                                className={`py-2 px-1 text-xs font-bold rounded-xl transition-all cursor-pointer active:scale-95 ${
+                                  isSelected
+                                    ? 'bg-gradient-to-r from-red-600 to-rose-700 text-white font-black shadow-md shadow-rose-500/30 ring-2 ring-rose-200'
+                                    : 'text-slate-700 hover:bg-rose-50 hover:text-rose-600 bg-slate-50 border border-slate-100'
+                                }`}
+                              >
+                                {y}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Footer Action Bar */}
+                      <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100 text-xs">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleClearDob}
+                            className="px-2.5 py-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg font-medium transition cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSelectToday}
+                            className="px-2.5 py-1 text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg font-bold transition cursor-pointer"
+                          >
+                            Today
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowCalendarPopover(false)}
+                          className="px-3.5 py-1 bg-slate-900 text-white hover:bg-slate-800 rounded-lg font-semibold transition shadow-sm active:scale-95 cursor-pointer"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {formErrors.dob && <p className="text-xs text-rose-600 flex items-center gap-1 mt-1"><AlertCircle className="w-3.5 h-3.5" />{formErrors.dob}</p>}
+                {formErrors.dob && (
+                  <p className="text-xs text-rose-600 flex items-center gap-1 mt-1">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    {formErrors.dob}
+                  </p>
+                )}
               </div>
 
               {/* Caste / Category */}
